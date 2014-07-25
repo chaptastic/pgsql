@@ -85,7 +85,7 @@
 -define(REQUEST_TIMEOUT, infinity). 
 -define(DEFAULT_HOST, "127.0.0.1").
 -define(DEFAULT_PORT, 5432).
--define(DEFAULT_USER, "storage").
+-define(DEFAULT_USER, "postgres").
 -define(DEFAULT_PASSWORD, "").
 -define(DEFAULT_MAX_ROWS_STEP, 1000).
 
