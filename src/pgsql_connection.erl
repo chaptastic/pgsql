@@ -231,147 +231,147 @@ close(Pid) when is_pid(Pid) ->
 %% </ul>
 %% (the return types are compatible with ODBC's sql_query function).
 %% 
--spec sql_query(iodata(), pgsql_connection()) -> odbc_result_tuple() | {error, any()}.
-sql_query(Query, Connection) ->
-    sql_query(Query, [], Connection).
+-spec sql_query(pgsql_connection(), iodata()) -> odbc_result_tuple() | {error, any()}.
+sql_query(Connection, Query) ->
+    sql_query(Connection, Query, []).
 
--spec sql_query(iodata(), query_options(), pgsql_connection()) -> odbc_result_tuple() | {error, any()}.
-sql_query(Query, QueryOptions, Connection) ->
-    sql_query(Query, QueryOptions, ?REQUEST_TIMEOUT, Connection).
+-spec sql_query(pgsql_connection(), iodata(), query_options()) -> odbc_result_tuple() | {error, any()}.
+sql_query(Connection, Query, QueryOptions) ->
+    sql_query(Connection, Query, QueryOptions, ?REQUEST_TIMEOUT).
 
--spec sql_query(iodata(), query_options(), timeout(), pgsql_connection()) -> odbc_result_tuple() | {error, any()}.
-sql_query(Query, QueryOptions, Timeout, Connection) ->
-    Result = simple_query(Query, QueryOptions, Timeout, Connection),
+-spec sql_query(pgsql_connection(), iodata(), query_options(), timeout()) -> odbc_result_tuple() | {error, any()}.
+sql_query(Connection, Query, QueryOptions, Timeout) ->
+    Result = simple_query(Connection, Query, QueryOptions, Timeout),
     native_to_odbc(Result).
 
 %%--------------------------------------------------------------------
 %% @doc Perform a query with parameters.
 %%
--spec param_query(iodata(), [any()], pgsql_connection()) -> odbc_result_tuple() | {error, any()}.
-param_query(Query, Parameters, Connection) ->
-    param_query(Query, Parameters, [], Connection).
+-spec param_query(pgsql_connection(), iodata(), [any()]) -> odbc_result_tuple() | {error, any()}.
+param_query(Connection, Query, Parameters) ->
+    param_query(Connection, Query, Parameters, []).
 
--spec param_query(iodata(), [any()], query_options(), pgsql_connection()) -> odbc_result_tuple() | {error, any()}.
-param_query(Query, Parameters, QueryOptions, Connection) ->
-    param_query(Query, Parameters, QueryOptions, ?REQUEST_TIMEOUT, Connection).
+-spec param_query(pgsql_connection(), iodata(), [any()], query_options()) -> odbc_result_tuple() | {error, any()}.
+param_query(Connection, Query, Parameters, QueryOptions) ->
+    param_query(Connection, Query, Parameters, QueryOptions, ?REQUEST_TIMEOUT).
 
--spec param_query(iodata(), [any()], query_options(), timeout(), pgsql_connection()) -> odbc_result_tuple() | {error, any()}.
-param_query(Query, Parameters, QueryOptions, Timeout, Connection) ->
+-spec param_query(pgsql_connection(), iodata(), [any()], query_options(), timeout()) -> odbc_result_tuple() | {error, any()}.
+param_query(Connection, Query, Parameters, QueryOptions, Timeout) ->
     ConvertedQuery = convert_statement(Query),
-    Result = extended_query(ConvertedQuery, Parameters, QueryOptions, Timeout, Connection),
+    Result = extended_query(Connection, ConvertedQuery, Parameters, QueryOptions, Timeout),
     native_to_odbc(Result).
 
 %%--------------------------------------------------------------------
 %% @doc Perform a simple query.
 %% 
--spec simple_query(iodata(), pgsql_connection()) -> result_tuple() | {error, any()}.
-simple_query(Query, Connection) ->
-    simple_query(Query, [], Connection).
+-spec simple_query(pgsql_connection(), iodata()) -> result_tuple() | {error, any()}.
+simple_query(Connection, Query) ->
+    simple_query(Connection, Query, []).
 
--spec simple_query(iodata(), query_options(), pgsql_connection()) -> result_tuple() | {error, any()}.
-simple_query(Query, QueryOptions, Connection) ->
-    simple_query(Query, QueryOptions, ?REQUEST_TIMEOUT, Connection).
+-spec simple_query(pgsql_connection(), iodata(), query_options()) -> result_tuple() | {error, any()}.
+simple_query(Connection, Query, QueryOptions) ->
+    simple_query(Connection, Query, QueryOptions, ?REQUEST_TIMEOUT).
 
 %% @doc Perform a simple query with query options and a timeout.
 %% Issuing SET statement_timeout or altering default in postgresql.conf
 %% will confuse timeout logic and such manual handling of statement_timeout
 %% should not be mixed with calls to simple_query/4.
 %%
--spec simple_query(iodata(), query_options(), timeout(), pgsql_connection()) -> result_tuple() | {error, any()}.
-simple_query(Query, QueryOptions, Timeout, ConnectionPid) ->
+-spec simple_query(pgsql_connection(), iodata(), query_options(), timeout()) -> result_tuple() | {error, any()}.
+simple_query(ConnectionPid, Query, QueryOptions, Timeout) ->
     call_and_retry(ConnectionPid, {simple_query, Query, QueryOptions, Timeout}, proplists:get_bool(retry, QueryOptions), adjust_timeout(Timeout)).
 
 %%--------------------------------------------------------------------
 %% @doc Perform a query with parameters.
 %%
--spec extended_query(iodata(), [any()], pgsql_connection()) -> result_tuple() | {error, any()}.
-extended_query(Query, Parameters, Connection) ->
-    extended_query(Query, Parameters, [], Connection).
+-spec extended_query(pgsql_connection(), iodata(), [any()]) -> result_tuple() | {error, any()}.
+extended_query(Connection, Query, Parameters) ->
+    extended_query(Connection, Query, Parameters, []).
 
--spec extended_query(iodata(), [any()], query_options(), pgsql_connection()) -> result_tuple() | {error, any()}.
-extended_query(Query, Parameters, QueryOptions, Connection) ->
-    extended_query(Query, Parameters, QueryOptions, ?REQUEST_TIMEOUT, Connection).
+-spec extended_query(pgsql_connection(), iodata(), [any()], query_options()) -> result_tuple() | {error, any()}.
+extended_query(Connection, Query, Parameters, QueryOptions) ->
+    extended_query(Connection, Query, Parameters, QueryOptions, ?REQUEST_TIMEOUT).
 
 %% @doc Perform an extended query with query options and a timeout.
 %% See discussion of simple_query/4 about timeout values.
 %%
--spec extended_query(iodata(), [any()], query_options(), timeout(), pgsql_connection()) -> result_tuple() | {error, any()}.
-extended_query(Query, Parameters, QueryOptions, Timeout, ConnectionPid) ->
+-spec extended_query(pgsql_connection(), iodata(), [any()], query_options(), timeout()) -> result_tuple() | {error, any()}.
+extended_query(ConnectionPid, Query, Parameters, QueryOptions, Timeout) ->
     call_and_retry(ConnectionPid, {extended_query, Query, Parameters, QueryOptions, Timeout}, proplists:get_bool(retry, QueryOptions), adjust_timeout(Timeout)).
 
 %%--------------------------------------------------------------------
 %% @doc Perform a query several times with parameters.
 %%
--spec batch_query(iodata(), [any()], pgsql_connection()) -> [result_tuple()] | {error, any()}.
-batch_query(Query, Parameters, Connection) ->
-    batch_query(Query, Parameters, [], Connection).
+-spec batch_query(pgsql_connection(), iodata(), [any()]) -> [result_tuple()] | {error, any()}.
+batch_query(Connection, Query, Parameters) ->
+    batch_query(Connection, Query, Parameters, []).
 
--spec batch_query(iodata(), [any()], query_options(), pgsql_connection()) -> [result_tuple()] | {error, any()}.
-batch_query(Query, Parameters, QueryOptions, Connection) ->
-    batch_query(Query, Parameters, QueryOptions, ?REQUEST_TIMEOUT, Connection).
+-spec batch_query(pgsql_connection(), iodata(), [any()], query_options()) -> [result_tuple()] | {error, any()}.
+batch_query(Connection, Query, Parameters, QueryOptions) ->
+    batch_query(Connection, Query, Parameters, QueryOptions, ?REQUEST_TIMEOUT).
 
--spec batch_query(iodata(), [any()], query_options(), timeout(), pgsql_connection()) -> [result_tuple()] | {error, any()}.
-batch_query(Query, Parameters, QueryOptions, Timeout, ConnectionPid) ->
+-spec batch_query(pgsql_connection(), iodata(), [any()], query_options(), timeout()) -> [result_tuple()] | {error, any()}.
+batch_query(ConnectionPid, Query, Parameters, QueryOptions, Timeout) ->
     call_and_retry(ConnectionPid, {batch_query, Query, Parameters, QueryOptions, Timeout}, proplists:get_bool(retry, QueryOptions), adjust_timeout(Timeout)).
 
 %%--------------------------------------------------------------------
 %% @doc Fold over results of a given query.
 %% The function is evaluated within the connection's process.
 %%
--spec fold(fun((tuple(), Acc) -> Acc), Acc, iodata(), pgsql_connection()) -> {ok, Acc} | {error, any()}.
-fold(Function, Acc0, Query, Connection) ->
-    fold(Function, Acc0, Query, [], Connection).
+-spec fold(fun((tuple(), Acc) -> Acc), Acc, pgsql_connection(), iodata()) -> {ok, Acc} | {error, any()}.
+fold(Function, Acc0, Connection, Query) ->
+    fold(Function, Acc0, Connection, Query, []).
 
--spec fold(fun((tuple(), Acc) -> Acc), Acc, iodata(), [any()], pgsql_connection()) -> {ok, Acc} | {error, any()}.
-fold(Function, Acc0, Query, Parameters, Connection) ->
-    fold(Function, Acc0, Query, Parameters, [], Connection).
+-spec fold(fun((tuple(), Acc) -> Acc), Acc, pgsql_connection(), iodata(), [any()]) -> {ok, Acc} | {error, any()}.
+fold(Function, Acc0, Connection, Query, Parameters) ->
+    fold(Function, Acc0, Connection, Query, Parameters, []).
 
--spec fold(fun((tuple(), Acc) -> Acc), Acc, iodata(), [any()], query_options(), pgsql_connection()) -> {ok, Acc} | {error, any()}.
-fold(Function, Acc0, Query, Parameters, QueryOptions, Connection) ->
-    fold(Function, Acc0, Query, Parameters, QueryOptions, ?REQUEST_TIMEOUT, Connection).
+-spec fold(fun((tuple(), Acc) -> Acc), Acc, pgsql_connection(), iodata(), [any()], query_options()) -> {ok, Acc} | {error, any()}.
+fold(Function, Acc0, Connection, Query, Parameters, QueryOptions) ->
+    fold(Function, Acc0, Connection, Query, Parameters, QueryOptions, ?REQUEST_TIMEOUT).
 
--spec fold(fun((tuple(), Acc) -> Acc), Acc, iodata(), [any()], query_options(), timeout(), pgsql_connection()) -> {ok, Acc} | {error, any()}.
-fold(Function, Acc0, Query, Parameters, QueryOptions, Timeout, ConnectionPid) ->
+-spec fold(fun((tuple(), Acc) -> Acc), Acc, pgsql_connection(), iodata(), [any()], query_options(), timeout()) -> {ok, Acc} | {error, any()}.
+fold(Function, Acc0, ConnectionPid, Query, Parameters, QueryOptions, Timeout) ->
     call_and_retry(ConnectionPid, {fold, Query, Parameters, Function, Acc0, QueryOptions, Timeout}, proplists:get_bool(retry, QueryOptions), adjust_timeout(Timeout)).
 
 %%--------------------------------------------------------------------
 %% @doc Map results of a given query.
 %% The function is evaluated within the connection's process.
 %%
--spec map(fun((tuple()) -> Any), iodata(), pgsql_connection()) -> {ok, [Any]} | {error, any()}.
-map(Function, Query, Connection) ->
-    map(Function, Query, [], Connection).
+-spec map(fun((tuple()) -> Any), pgsql_connection(), iodata()) -> {ok, [Any]} | {error, any()}.
+map(Function, Connection, Query) ->
+    map(Function, Connection, Query, []).
 
--spec map(fun((tuple()) -> Any), iodata(), [any()], pgsql_connection()) -> {ok, [Any]} | {error, any()}.
-map(Function, Query, Parameters, Connection) ->
-    map(Function, Query, Parameters, [], Connection).
+-spec map(fun((tuple()) -> Any), pgsql_connection(), iodata(), [any()]) -> {ok, [Any]} | {error, any()}.
+map(Function, Connection, Query, Parameters) ->
+    map(Function, Connection, Query, Parameters, []).
 
--spec map(fun((tuple()) -> Any), iodata(), [any()], query_options(), pgsql_connection()) -> {ok, [Any]} | {error, any()}.
-map(Function, Query, Parameters, QueryOptions, Connection) ->
-    map(Function, Query, Parameters, QueryOptions, ?REQUEST_TIMEOUT, Connection).
+-spec map(fun((tuple()) -> Any), pgsql_connection(), iodata(), [any()], query_options()) -> {ok, [Any]} | {error, any()}.
+map(Function, Connection, Query, Parameters, QueryOptions) ->
+    map(Function, Connection, Query, Parameters, QueryOptions, ?REQUEST_TIMEOUT).
 
--spec map(fun((tuple()) -> Any), iodata(), [any()], query_options(), timeout(), pgsql_connection()) -> {ok, [Any]} | {error, any()}.
-map(Function, Query, Parameters, QueryOptions, Timeout, ConnectionPid) ->
+-spec map(fun((tuple()) -> Any), pgsql_connection(), iodata(), [any()], query_options(), timeout()) -> {ok, [Any]} | {error, any()}.
+map(Function, ConnectionPid, Query, Parameters, QueryOptions, Timeout) ->
     call_and_retry(ConnectionPid, {map, Query, Parameters, Function, QueryOptions, Timeout}, proplists:get_bool(retry, QueryOptions), adjust_timeout(Timeout)).
 
 %%--------------------------------------------------------------------
 %% @doc Iterate on results of a given query.
 %% The function is evaluated within the connection's process.
 %%
--spec foreach(fun((tuple()) -> any()), iodata(), pgsql_connection()) -> ok | {error, any()}.
-foreach(Function, Query, Connection) ->
-    foreach(Function, Query, [], Connection).
+-spec foreach(fun((tuple()) -> any()), pgsql_connection(), iodata()) -> ok | {error, any()}.
+foreach(Function, Connection, Query) ->
+    foreach(Function, Connection, Query, []).
 
--spec foreach(fun((tuple()) -> any()), iodata(), [any()], pgsql_connection()) -> ok | {error, any()}.
-foreach(Function, Query, Parameters, Connection) ->
-    foreach(Function, Query, Parameters, [], Connection).
+-spec foreach(fun((tuple()) -> any()), pgsql_connection(), iodata(), [any()]) -> ok | {error, any()}.
+foreach(Function, Connection, Query, Parameters) ->
+    foreach(Function, Connection, Query, Parameters, []).
 
--spec foreach(fun((tuple()) -> any()), iodata(), [any()], query_options(), pgsql_connection()) -> ok | {error, any()}.
-foreach(Function, Query, Parameters, QueryOptions, Connection) ->
-    foreach(Function, Query, Parameters, QueryOptions, ?REQUEST_TIMEOUT, Connection).
+-spec foreach(fun((tuple()) -> any()), pgsql_connection(), iodata(), [any()], query_options()) -> ok | {error, any()}.
+foreach(Function, Connection, Query, Parameters, QueryOptions) ->
+    foreach(Function, Connection, Query, Parameters, QueryOptions, ?REQUEST_TIMEOUT).
 
--spec foreach(fun((tuple()) -> any()), iodata(), [any()], query_options(), timeout(), pgsql_connection()) -> ok | {error, any()}.
-foreach(Function, Query, Parameters, QueryOptions, Timeout, ConnectionPid) ->
+-spec foreach(fun((tuple()) -> any()), pgsql_connection(), iodata(), [any()], query_options(), timeout()) -> ok | {error, any()}.
+foreach(Function, ConnectionPid, Query, Parameters, QueryOptions, Timeout) ->
     call_and_retry(ConnectionPid, {foreach, Query, Parameters, Function, QueryOptions, Timeout}, proplists:get_bool(retry, QueryOptions), adjust_timeout(Timeout)).
 
 %%--------------------------------------------------------------------
@@ -385,15 +385,15 @@ cancel(ConnectionPid) when is_pid(ConnectionPid)  ->
 %% @doc Subscribe to notifications. Subscribers get notifications as
 %% <code>{pgsql, Connection, {notification, ProcID, Channel, Payload}}</code>
 %%
--spec subscribe(pid(), pgsql_connection()) -> ok | {error, any()}.
-subscribe(Pid, ConnectionPid) when is_pid(ConnectionPid), is_pid(Pid) ->
+-spec subscribe(pgsql_connection(), pid()) -> ok | {error, any()}.
+subscribe(ConnectionPid, Pid) when is_pid(ConnectionPid), is_pid(Pid) ->
     gen_server:cast(ConnectionPid, {subscribe, Pid}).
 
 %%--------------------------------------------------------------------
 %% @doc Unsubscribe to notifications.
 %%
--spec unsubscribe(pid(), pgsql_connection()) -> ok | {error, any()}.
-unsubscribe(Pid, ConnectionPid) when is_pid(ConnectionPid), is_pid(Pid) ->
+-spec unsubscribe(pgsql_connection(), pid()) -> ok | {error, any()}.
+unsubscribe(ConnectionPid, Pid) when is_pid(ConnectionPid), is_pid(Pid) ->
     gen_server:cast(ConnectionPid, {unsubscribe, Pid}).
 
 %%====================================================================
@@ -1199,7 +1199,7 @@ oob_update_oid_map(#state{options = Options0} = State0) ->
     {ok, SubConnection} = pgsql_connection_sup:start_child(OOBOptions),
     {ok, NewOIDMap} = fold(fun({Oid, Typename}, AccTypes) ->
         gb_trees:enter(Oid, binary_to_atom(Typename, utf8), AccTypes)
-    end, State0#state.oidmap, "SELECT oid, typname FROM pg_type", SubConnection),
+    end, State0#state.oidmap, SubConnection, "SELECT oid, typname FROM pg_type"),
     close(SubConnection),
     State0#state{oidmap = NewOIDMap}.
 
