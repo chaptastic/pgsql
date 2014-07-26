@@ -267,85 +267,89 @@ types_test_() ->
             ?_assertEqual({updated, 1}, pgsql_connection:param_query(Conn, "insert into types (id, an_integer, a_bigint, a_text, a_uuid, a_bytea, a_real) values (?, ?, ?, ?, ?, ?, ?)",
                 [6, null, null, <<"And in the end, the love you take is equal to the love you make">>, null, null, null]))
         },
-        {"Insert uuid",
+        {"Insert uuid (list)",
             ?_assertEqual({updated, 1}, pgsql_connection:param_query(Conn, "insert into types (id, an_integer, a_bigint, a_text, a_uuid, a_bytea, a_real) values (?, ?, ?, ?, ?, ?, ?)",
-                [7, null, null, null, <<"727F42A6-E6A0-4223-9B72-6A5EB7436AB5">>, null, null]))
+                [7, null, null, null, "727F42A6-E6A0-4223-9B72-6A5EB7436AB5", null, null]))
+        },
+        {"Insert uuid (binary)",
+            ?_assertEqual({updated, 1}, pgsql_connection:param_query(Conn, "insert into types (id, an_integer, a_bigint, a_text, a_uuid, a_bytea, a_real) values (?, ?, ?, ?, ?, ?, ?)",
+                [8, null, null, null, <<114,127,66,166,230,160,66,35,155,114,106,94,183,67,106,181>>, null, null]))
         },
         {"Insert bytea",
             ?_assertEqual({updated, 1}, pgsql_connection:param_query(Conn, "insert into types (id, an_integer, a_bigint, a_text, a_uuid, a_bytea, a_real) values (?, ?, ?, ?, ?, ?, ?)",
-                [8, null, null, null, null, <<"deadbeef">>, null]))
+                [9, null, null, null, null, <<"deadbeef">>, null]))
         },
         {"Insert float",
             ?_assertEqual({updated, 1}, pgsql_connection:param_query(Conn, "insert into types (id, an_integer, a_bigint, a_text, a_uuid, a_bytea, a_real) values (?, ?, ?, ?, ?, ?, ?)",
-                [9, null, null, null, null, null, 3.1415]))
+                [10, null, null, null, null, null, 3.1415]))
         },
         {"Insert float",
             ?_assertEqual({updated, 1}, pgsql_connection:param_query(Conn, "insert into types (id, an_integer, a_bigint, a_text, a_uuid, a_bytea, a_real) values (?, ?, ?, ?, ?, ?, ?)",
-                [19, null, null, null, null, null, 3.0]))
+                [11, null, null, null, null, null, 3.0]))
         },
         {"Insert all",
             ?_assertEqual({updated, 1}, pgsql_connection:param_query(Conn, "insert into types (id, an_integer, a_bigint, a_text, a_uuid, a_bytea, a_real) values (?, ?, ?, ?, ?, ?, ?)",
-                [10, 42, 1099511627776, "And in the end, the love you take is equal to the love you make", <<"727F42A6-E6A0-4223-9B72-6A5EB7436AB5">>, <<"deadbeef">>, 3.1415]))
+                [12, 42, 1099511627776, "And in the end, the love you take is equal to the love you make", "727F42A6-E6A0-4223-9B72-6A5EB7436AB5", <<"deadbeef">>, 3.1415]))
         },
-        {"Select values (10)",
+        {"Select values (12)",
             ?_test(begin
-                R = pgsql_connection:sql_query(Conn, "select * from types where id = 10"),
+                R = pgsql_connection:sql_query(Conn, "select * from types where id = 12"),
                 ?assertMatch({selected, [_Row]}, R),
                 {selected, [Row]} = R,
-                ?assertMatch({10, 42, 1099511627776, <<"And in the end, the love you take is equal to the love you make">>, _UUID, <<"deadbeef">>, _Float}, Row),
-                {10, 42, 1099511627776, <<"And in the end, the love you take is equal to the love you make">>, UUID, <<"deadbeef">>, Float} = Row,
-                ?assertEqual(<<"727f42a6-e6a0-4223-9b72-6a5eb7436ab5">>, UUID),
+                ?assertMatch({12, 42, 1099511627776, <<"And in the end, the love you take is equal to the love you make">>, _UUID, <<"deadbeef">>, _Float}, Row),
+                {12, 42, 1099511627776, <<"And in the end, the love you take is equal to the love you make">>, UUID, <<"deadbeef">>, Float} = Row,
+                ?assertEqual(<<114,127,66,166,230,160,66,35,155,114,106,94,183,67,106,181>>, UUID),
                 ?assert(Float > 3.1413),
                 ?assert(Float < 3.1416)
             end)
         },
-        {"Select values (10) (with bind)",
+        {"Select values (12) (with bind)",
             ?_test(begin
-                R = pgsql_connection:param_query(Conn, "select * from types where id = ?", [10]),
+                R = pgsql_connection:param_query(Conn, "select * from types where id = ?", [12]),
                 ?assertMatch({selected, [_Row]}, R),
                 {selected, [Row]} = R,
-                ?assertMatch({10, 42, 1099511627776, <<"And in the end, the love you take is equal to the love you make">>, _UUID, <<"deadbeef">>, _Float}, Row),
-                {10, 42, 1099511627776, <<"And in the end, the love you take is equal to the love you make">>, UUID, <<"deadbeef">>, Float} = Row,
-                ?assertEqual(<<"727f42a6-e6a0-4223-9b72-6a5eb7436ab5">>, UUID),
+                ?assertMatch({12, 42, 1099511627776, <<"And in the end, the love you take is equal to the love you make">>, _UUID, <<"deadbeef">>, _Float}, Row),
+                {12, 42, 1099511627776, <<"And in the end, the love you take is equal to the love you make">>, UUID, <<"deadbeef">>, Float} = Row,
+                ?assertEqual(<<114,127,66,166,230,160,66,35,155,114,106,94,183,67,106,181>>, UUID),
                 ?assert(Float > 3.1413),
                 ?assert(Float < 3.1416)
             end)
         },
         {"Insert bytea",
             ?_assertEqual({updated, 1}, pgsql_connection:param_query(Conn, "insert into types (id, an_integer, a_bigint, a_text, a_uuid, a_bytea, a_real) values (?, ?, ?, ?, ?, ?, ?)",
-                [11, null, null, null, null, <<"deadbeef">>, null]))
+                [13, null, null, null, null, <<"deadbeef">>, null]))
         },
         {"Insert with returning",
-            ?_assertEqual({updated, 1, [{15}]}, pgsql_connection:param_query(Conn, "insert into types (id, an_integer, a_bigint, a_text, a_uuid, a_bytea, a_real) values (?, ?, ?, ?, ?, ?, ?) RETURNING id",
-                [15, null, null, null, null, <<"deadbeef">>, null]))
+            ?_assertEqual({updated, 1, [{14}]}, pgsql_connection:param_query(Conn, "insert into types (id, an_integer, a_bigint, a_text, a_uuid, a_bytea, a_real) values (?, ?, ?, ?, ?, ?, ?) RETURNING id",
+                [14, null, null, null, null, <<"deadbeef">>, null]))
         },
-        {"Select values (11)",
+        {"Select values (13)",
             ?_test(begin
-                R = pgsql_connection:param_query(Conn, "select * from types where id = ?", [11]),
+                R = pgsql_connection:param_query(Conn, "select * from types where id = ?", [13]),
                 ?assertMatch({selected, [_Row]}, R),
                 {selected, [Row]} = R,
-                ?assertEqual({11, null, null, null, null, <<"deadbeef">>, null}, Row)
+                ?assertEqual({13, null, null, null, null, <<"deadbeef">>, null}, Row)
             end)
         },
         {"Insert uuid in lowercase",
             ?_assertEqual({updated, 1}, pgsql_connection:param_query(Conn, "insert into types (id, an_integer, a_bigint, a_text, a_uuid, a_bytea, a_real) values (?, ?, ?, ?, ?, ?, ?)",
-                [16, null, null, null, <<"727f42a6-e6a0-4223-9b72-6a5eb7436ab5">>, null, null]))
+                [15, null, null, null, "727f42a6-e6a0-4223-9b72-6a5eb7436ab5", null, null]))
         },
         {"Insert uc uuid in text column",
             ?_assertEqual({updated, 1}, pgsql_connection:param_query(Conn, "insert into types (id, an_integer, a_bigint, a_text, a_uuid, a_bytea, a_real) values (?, ?, ?, ?, ?, ?, ?)",
-                [17, null, null, <<"727F42A6-E6A0-4223-9B72-6A5EB7436AB5">>, null, null, null]))
+                [16, null, null, "727F42A6-E6A0-4223-9B72-6A5EB7436AB5", null, null, null]))
         },
         {"Insert lc uuid in text column",
             ?_assertEqual({updated, 1}, pgsql_connection:param_query(Conn, "insert into types (id, an_integer, a_bigint, a_text, a_uuid, a_bytea, a_real) values (?, ?, ?, ?, ?, ?, ?)",
-                [18, null, null, <<"727f42a6-e6a0-4223-9b72-6a5eb7436ab5">>, null, null, null]))
+                [17, null, null, "727f42a6-e6a0-4223-9b72-6a5eb7436ab5", null, null, null]))
         },
-        {"Select text uuid (17 \& 18)",
+        {"Select text uuid (16 \& 17)",
             ?_test(begin
-                R = pgsql_connection:param_query(Conn, "select a_text from types where id IN ($1, $2) order by id", [17, 18]),
-                ?assertMatch({selected, [_Row17, _Row18]}, R),
-                {selected, [Row17, Row18]} = R,
-                ?assertEqual({<<"727F42A6-E6A0-4223-9B72-6A5EB7436AB5">>}, Row17),
-                ?assertEqual({<<"727f42a6-e6a0-4223-9b72-6a5eb7436ab5">>}, Row18)
+                R = pgsql_connection:param_query(Conn, "select a_text from types where id IN ($1, $2) order by id", [16, 17]),
+                ?assertMatch({selected, [_Row16, _Row17]}, R),
+                {selected, [Row16, Row17]} = R,
+                ?assertEqual({<<"727F42A6-E6A0-4223-9B72-6A5EB7436AB5">>}, Row16),
+                ?assertEqual({<<"727f42a6-e6a0-4223-9b72-6a5eb7436ab5">>}, Row17)
             end)
         }
         ]

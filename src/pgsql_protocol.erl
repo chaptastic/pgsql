@@ -129,21 +129,8 @@ encode_format(binary) -> <<1:16/integer>>.
 encode_parameter({array, List}, Type, OIDMap, IntegerDateTimes) ->
     encode_array(List, Type, OIDMap, IntegerDateTimes);
 encode_parameter(Binary, _Type, _OIDMap, _IntegerDateTimes) when is_binary(Binary) ->
-    % Encode the binary as text if it is a UUID.
-    IsUUID = case Binary of
-        <<_A:8/binary, $-, _B:4/binary, $-, _C:4/binary, $-, _D:4/binary, $-, _E:12/binary>> ->
-            case io_lib:fread("~16u-~16u-~16u-~16u-~16u", binary_to_list(Binary)) of
-                {ok,[_AI, _BI, _CI, _DI, _EI],[]} -> true;
-                _ -> false
-            end;
-        _ -> false
-    end,
-    Type = if
-        IsUUID -> text;
-        true -> binary
-    end,
     Size = byte_size(Binary),
-    {Type, <<Size:32/integer, Binary/binary>>};
+    {binary, <<Size:32/integer, Binary/binary>>};
 encode_parameter(String, _Type, _OIDMap, _IntegerDateTimes) when is_list(String) ->
     Binary = list_to_binary(String),
     Size = byte_size(Binary),
@@ -835,8 +822,10 @@ decode_value_text(?POLYGONOID, Value, _OIDMap) ->
     {Points, []} = decode_points_text($(, $), binary_to_list(Value)),
     {polygon, Points};
 decode_value_text(?VOIDOID, _Value, _OIDMap) -> null;
+decode_value_text(?UUIDOID, <<A:8/binary, $-, B:4/binary, $-, C:4/binary, $-, D:4/binary, $-, E:12/binary>>, _OIDMap) ->
+    Value = binary_to_integer(<<A:8/binary, B:4/binary, C:4/binary, D:4/binary, E:12/binary>>, 16),
+    <<Value:128/unsigned-integer>>;
 decode_value_text(TypeOID, Value, _OIDMap) when TypeOID =:= ?TEXTOID
-            orelse TypeOID =:= ?UUIDOID
             orelse TypeOID =:= ?NAMEOID
             orelse TypeOID =:= ?BPCHAROID
             orelse TypeOID =:= ?VARCHAROID
@@ -929,10 +918,7 @@ decode_value_bin(?FLOAT8OID, <<Value:64/float>>, _OIDMap, _IntegerDateTimes) -> 
 decode_value_bin(?FLOAT8OID, <<127,248,0,0,0,0,0,0>>, _OIDMap, _IntegerDateTimes) -> 'NaN';
 decode_value_bin(?FLOAT8OID, <<127,240,0,0,0,0,0,0>>, _OIDMap, _IntegerDateTimes) -> 'Infinity';
 decode_value_bin(?FLOAT8OID, <<255,240,0,0,0,0,0,0>>, _OIDMap, _IntegerDateTimes) -> '-Infinity';
-decode_value_bin(?UUIDOID, Value, _OIDMap, _IntegerDateTimes) ->
-    <<UUID_A:32/integer, UUID_B:16/integer, UUID_C:16/integer, UUID_D:16/integer, UUID_E:48/integer>> = Value,
-    UUIDStr = io_lib:format("~8.16.0b-~4.16.0b-~4.16.0b-~4.16.0b-~12.16.0b", [UUID_A, UUID_B, UUID_C, UUID_D, UUID_E]),
-    list_to_binary(UUIDStr);
+decode_value_bin(?UUIDOID, Value, _OIDMap, _IntegerDateTimes) -> Value;
 decode_value_bin(?DATEOID, <<Date:32/signed-integer>>, _OIDMap, true) -> calendar:gregorian_days_to_date(Date + ?POSTGRESQL_GD_EPOCH);
 decode_value_bin(?TIMEOID, <<Time:64/signed-integer>>, _OIDMap, true) -> decode_time_int(Time);
 decode_value_bin(?TIMETZOID, <<Time:64/signed-integer, _TZ:32/integer>>, _OIDMap, true) -> decode_time_int(Time);
