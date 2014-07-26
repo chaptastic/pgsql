@@ -26,43 +26,37 @@ open_close_test_() ->
     [
         {"Open connection to test database with test account",
         ?_test(begin
-            R = pgsql_connection:open("test", "test"),
+            {ok, R} = pgsql_connection:open("test", "test"),
             pgsql_connection:close(R)
         end)},
         {"Open connection to test database with test account, expliciting empty password",
         ?_test(begin
-            R = pgsql_connection:open("test", "test", ""),
+            {ok, R} = pgsql_connection:open("test", "test", ""),
             pgsql_connection:close(R)
         end)},
         {"Open connection to test database with test account, expliciting host",
         ?_test(begin
-            R = pgsql_connection:open("0.0.0.0", "test", "test", ""),
+            {ok, R} = pgsql_connection:open("0.0.0.0", "test", "test", ""),
             pgsql_connection:close(R)
         end)},
         {"Open connection to test database with test account, expliciting host, using IP for host and binaries for account/database/password",
         ?_test(begin
-            R = pgsql_connection:open({0,0,0,0}, <<"test">>, <<"test">>, <<>>),
+            {ok, R} = pgsql_connection:open({0,0,0,0}, <<"test">>, <<"test">>, <<>>),
             pgsql_connection:close(R)
         end)},
         {"Open connection to test database with test account, expliciting host and options",
         ?_test(begin
-            R = pgsql_connection:open("0.0.0.0", "test", "test", "", [{application_name, eunit_tests}]),
+            {ok, R} = pgsql_connection:open("0.0.0.0", "test", "test", "", [{application_name, eunit_tests}]),
             pgsql_connection:close(R)
         end)},
         {"Open connection to test database with options as list",
         ?_test(begin
-            R = pgsql_connection:open([{host, "0.0.0.0"}, {database, "test"}, {user, "test"}, {password, ""}]),
+            {ok, R} = pgsql_connection:open([{host, "0.0.0.0"}, {database, "test"}, {user, "test"}, {password, ""}]),
             pgsql_connection:close(R)
         end)},
-        {"Bad user throws",
+        {"Bad user returns an error",
         ?_test(begin
-            try
-                R = pgsql_connection:open("test", "bad_user"),
-                pgsql_connection:close(R),
-                ?assert(false)
-            catch throw:{pgsql_error, _Error} ->
-                ok
-            end
+            {error, _} = pgsql_connection:open("test", "bad_user")
         end)}
     ]}.
 
@@ -119,7 +113,7 @@ reconnect_test_() ->
         [
             {"Reconnect after close",
             ?_test(begin
-                Conn = pgsql_connection:open([{host, "0.0.0.0"}, {port, 35432}, {database, "test"}, {user, "test"}, {password, ""}, reconnect]),
+                {ok, Conn} = pgsql_connection:open([{host, "0.0.0.0"}, {port, 35432}, {database, "test"}, {user, "test"}, {password, ""}, reconnect]),
                 ?assertEqual({{select, 1}, [{null}]}, pgsql_connection:simple_query("select null", Conn)),
                 ProxyPid ! {self(), close},
                 receive {ProxyPid, closed} -> ok end,
@@ -130,7 +124,7 @@ reconnect_test_() ->
             end)},
             {"Socket is closed during transfer, driver returns {error, closed} even with reconnect",
             ?_test(begin
-                Conn = pgsql_connection:open([{host, "0.0.0.0"}, {port, 35432}, {database, "test"}, {user, "test"}, {password, ""}, reconnect]),
+                {ok, Conn} = pgsql_connection:open([{host, "0.0.0.0"}, {port, 35432}, {database, "test"}, {user, "test"}, {password, ""}, reconnect]),
                 ?assertEqual({{select, 1}, [{null}]}, pgsql_connection:simple_query("select null", Conn)),
                 ProxyPid ! {self(), close_during_xfer},
                 ?assertEqual({error, closed}, pgsql_connection:simple_query("select null", Conn)),
@@ -139,7 +133,7 @@ reconnect_test_() ->
             end)},
             {"Socket is closed during transfer, driver does not return {error, closed} with retry",
             ?_test(begin
-                Conn = pgsql_connection:open([{host, "0.0.0.0"}, {port, 35432}, {database, "test"}, {user, "test"}, {password, ""}, reconnect]),
+                {ok, Conn} = pgsql_connection:open([{host, "0.0.0.0"}, {port, 35432}, {database, "test"}, {user, "test"}, {password, ""}, reconnect]),
                 ?assertEqual({{select, 1}, [{null}]}, pgsql_connection:simple_query("select null", Conn)),
                 ProxyPid ! {self(), close_during_xfer},
                 ?assertEqual({{select, 1}, [{null}]}, pgsql_connection:simple_query("select null", [retry], Conn)),
@@ -147,7 +141,7 @@ reconnect_test_() ->
             end)},
             {"Do not reconnect at all without reconnect",
             ?_test(begin
-                Conn = pgsql_connection:open([{host, "0.0.0.0"}, {port, 35432}, {database, "test"}, {user, "test"}, {password, ""}, {reconnect, false}]),
+                {ok, Conn} = pgsql_connection:open([{host, "0.0.0.0"}, {port, 35432}, {database, "test"}, {user, "test"}, {password, ""}, {reconnect, false}]),
                 ?assertEqual({{select, 1}, [{null}]}, pgsql_connection:simple_query("select null", Conn)),
                 ProxyPid ! {self(), close},
                 receive {ProxyPid, closed} -> ok end,
@@ -164,7 +158,7 @@ select_null_test_() ->
     {setup,
     fun() ->
         {ok, SupPid} = pgsql_connection_sup:start_link(),
-        Conn = pgsql_connection:open("test", "test"),
+        {ok, Conn} = pgsql_connection:open("test", "test"),
         {SupPid, Conn}
     end,
     fun({SupPid, Conn}) ->
@@ -184,7 +178,7 @@ sql_query_test_() ->
     {setup,
     fun() ->
         {ok, SupPid} = pgsql_connection_sup:start_link(),
-        Conn = pgsql_connection:open("test", "test"),
+        {ok, Conn} = pgsql_connection:open("test", "test"),
         {SupPid, Conn}
     end,
     fun({SupPid, Conn}) ->
@@ -233,7 +227,7 @@ types_test_() ->
     {setup,
     fun() ->
         {ok, SupPid} = pgsql_connection_sup:start_link(),
-        Conn = pgsql_connection:open("test", "test"),
+        {ok, Conn} = pgsql_connection:open("test", "test"),
         {SupPid, Conn}
     end,
     fun({SupPid, Conn}) ->
@@ -361,7 +355,7 @@ text_types_test_() ->
     {setup,
         fun() ->
                 {ok, SupPid} = pgsql_connection_sup:start_link(),
-                Conn = pgsql_connection:open("test", "test"),
+                {ok, Conn} = pgsql_connection:open("test", "test"),
                 {SupPid, Conn}
         end,
         fun({SupPid, Conn}) ->
@@ -387,7 +381,7 @@ array_types_test_() ->
     {setup,
         fun() ->
                 {ok, SupPid} = pgsql_connection_sup:start_link(),
-                Conn = pgsql_connection:open("test", "test"),
+                {ok, Conn} = pgsql_connection:open("test", "test"),
                 {SupPid, Conn}
         end,
         fun({SupPid, Conn}) ->
@@ -449,7 +443,7 @@ geometric_types_test_() ->
     [{setup,
       fun() ->
               {ok, SupPid} = pgsql_connection_sup:start_link(),
-              Conn = pgsql_connection:open("test", "test"),
+              {ok, Conn} = pgsql_connection:open("test", "test"),
               {SupPid, Conn}
       end,
       fun({SupPid, Conn}) ->
@@ -566,7 +560,7 @@ geometric_types_test_() ->
      {setup,
       fun() ->
               {ok, SupPid} = pgsql_connection_sup:start_link(),
-              Conn = pgsql_connection:open("test", "test"),
+              {ok, Conn} = pgsql_connection:open("test", "test"),
               {updated, 1} = pgsql_connection:sql_query("create temporary table tmp (id integer primary key, mypath path)", Conn),
               {SupPid, Conn}
       end,
@@ -583,7 +577,7 @@ geometric_types_test_() ->
      {setup,
       fun() ->
               {ok, SupPid} = pgsql_connection_sup:start_link(),
-              Conn = pgsql_connection:open("test", "test"),
+              {ok, Conn} = pgsql_connection:open("test", "test"),
               {updated, 1} = pgsql_connection:sql_query("create temporary table tmp (id integer primary key, mypath path)", Conn),
               {SupPid, Conn}
       end,
@@ -600,7 +594,7 @@ geometric_types_test_() ->
      {setup,
       fun() ->
               {ok, SupPid} = pgsql_connection_sup:start_link(),
-              Conn = pgsql_connection:open("test", "test"),
+              {ok, Conn} = pgsql_connection:open("test", "test"),
               {updated, 1} = pgsql_connection:sql_query("create temporary table tmp (id integer primary key, mypolygon polygon)", Conn),
               {SupPid, Conn}
       end,
@@ -620,7 +614,7 @@ float_types_test_() ->
     {setup,
     fun() ->
         {ok, SupPid} = pgsql_connection_sup:start_link(),
-        Conn = pgsql_connection:open("test", "test"),
+        {ok, Conn} = pgsql_connection:open("test", "test"),
         {SupPid, Conn}
     end,
     fun({SupPid, Conn}) ->
@@ -660,7 +654,7 @@ boolean_type_test_() ->
     {setup,
     fun() ->
         {ok, SupPid} = pgsql_connection_sup:start_link(),
-        Conn = pgsql_connection:open("test", "test"),
+        {ok, Conn} = pgsql_connection:open("test", "test"),
         {SupPid, Conn}
     end,
     fun({SupPid, Conn}) ->
@@ -680,7 +674,7 @@ null_test_() ->
     {setup,
     fun() ->
         {ok, SupPid} = pgsql_connection_sup:start_link(),
-        Conn = pgsql_connection:open("test", "test"),
+        {ok, Conn} = pgsql_connection:open("test", "test"),
         {SupPid, Conn}
     end,
     fun({SupPid, Conn}) ->
@@ -700,7 +694,7 @@ integer_types_test_() ->
     {setup,
     fun() ->
         {ok, SupPid} = pgsql_connection_sup:start_link(),
-        Conn = pgsql_connection:open("test", "test"),
+        {ok, Conn} = pgsql_connection:open("test", "test"),
         {SupPid, Conn}
     end,
     fun({SupPid, Conn}) ->
@@ -729,7 +723,7 @@ numeric_types_test_() ->
     {setup,
     fun() ->
         {ok, SupPid} = pgsql_connection_sup:start_link(),
-        Conn = pgsql_connection:open("test", "test"),
+        {ok, Conn} = pgsql_connection:open("test", "test"),
         {SupPid, Conn}
     end,
     fun({SupPid, Conn}) ->
@@ -786,7 +780,7 @@ datetime_types_test_() ->
     {setup,
     fun() ->
         {ok, SupPid} = pgsql_connection_sup:start_link(),
-        Conn = pgsql_connection:open("127.0.0.1", "test", "test", "", [{timezone, "UTC"}]),
+        {ok, Conn} = pgsql_connection:open("127.0.0.1", "test", "test", "", [{timezone, "UTC"}]),
         {SupPid, Conn}
     end,
     fun({SupPid, Conn}) ->
@@ -851,7 +845,7 @@ fold_test_() ->
     {setup,
     fun() ->
         {ok, SupPid} = pgsql_connection_sup:start_link(),
-        Conn = pgsql_connection:open("test", "test"),
+        {ok, Conn} = pgsql_connection:open("test", "test"),
         {SupPid, Conn}
     end,
     fun({SupPid, Conn}) ->
@@ -883,7 +877,7 @@ map_test_() ->
     {setup,
     fun() ->
         {ok, SupPid} = pgsql_connection_sup:start_link(),
-        Conn = pgsql_connection:open("test", "test"),
+        {ok, Conn} = pgsql_connection:open("test", "test"),
         {SupPid, Conn}
     end,
     fun({SupPid, Conn}) ->
@@ -916,7 +910,7 @@ map_fold_foreach_should_return_when_query_is_invalid_test_() ->
    {setup,
     fun() ->
         {ok, SupPid} = pgsql_connection_sup:start_link(),
-        Conn = pgsql_connection:open("test", "test"),
+        {ok, Conn} = pgsql_connection:open("test", "test"),
         {SupPid, Conn}
     end,
     fun({SupPid, Conn}) ->
@@ -948,7 +942,7 @@ foreach_test_() ->
     {setup,
     fun() ->
         {ok, SupPid} = pgsql_connection_sup:start_link(),
-        Conn = pgsql_connection:open("test", "test"),
+        {ok, Conn} = pgsql_connection:open("test", "test"),
         {SupPid, Conn}
     end,
     fun({SupPid, Conn}) ->
@@ -985,7 +979,7 @@ timeout_test_() ->
     {setup,
     fun() ->
         {ok, SupPid} = pgsql_connection_sup:start_link(),
-        Conn = pgsql_connection:open("test", "test"),
+        {ok, Conn} = pgsql_connection:open("test", "test"),
         {SupPid, Conn}
     end,
     fun({SupPid, Conn}) ->
@@ -1000,8 +994,8 @@ timeout_test_() ->
         ?_assertEqual({selected, [{null}]}, pgsql_connection:param_query("select pg_sleep(2)", [], [], infinity, Conn)),
         ?_assertEqual({selected, [{null}]}, pgsql_connection:sql_query("select pg_sleep(2)", [], 2500, Conn)),
         ?_assertEqual({selected, [{null}]}, pgsql_connection:param_query("select pg_sleep(2)", [], [], 2500, Conn)),
-        ?_assertMatch({error, {pgsql_error, _}}, pgsql_connection:sql_query("select pg_sleep(2)", [], 1500, Conn)),
-        ?_assertMatch({error, {pgsql_error, _}}, pgsql_connection:param_query("select pg_sleep(2)", [], [], 1500, Conn)),
+        ?_assertMatch({error, _}, pgsql_connection:sql_query("select pg_sleep(2)", [], 1500, Conn)),
+        ?_assertMatch({error, _}, pgsql_connection:param_query("select pg_sleep(2)", [], [], 1500, Conn)),
         ?_assertEqual({selected, [{null}]}, pgsql_connection:sql_query("select pg_sleep(2)", Conn)),
         ?_assertEqual({selected, [{null}]}, pgsql_connection:param_query("select pg_sleep(2)", [], Conn)),
         ?_test(begin
@@ -1061,17 +1055,12 @@ postgression_ssl_test_() ->
                 [
                     {"Postgression requires SSL",
                     ?_test(begin
-                        try
-                            pgsql_connection:open(Host, Database, User, Password, [{port, Port}]),
-                            ?assert(false)
-                        catch throw:{pgsql_error, _} ->
-                            ok
-                        end
+                        {error, _} = pgsql_connection:open(Host, Database, User, Password, [{port, Port}])
                     end)
                     },
                     {"SSL Connection test",
                     ?_test(begin
-                        Conn = pgsql_connection:open(Host, Database, User, Password, [{port, Port}, {ssl, true}]),
+                        {ok, Conn} = pgsql_connection:open(Host, Database, User, Password, [{port, Port}, {ssl, true}]),
                         ?assertEqual({show, [{<<"on">>}]}, pgsql_connection:simple_query("show ssl", Conn)),
                         pgsql_connection:close(Conn)
                     end)
@@ -1084,7 +1073,7 @@ constraint_violation_test_() ->
     {setup,
     fun() ->
         {ok, SupPid} = pgsql_connection_sup:start_link(),
-        Conn = pgsql_connection:open("test", "test"),
+        {ok, Conn} = pgsql_connection:open("test", "test"),
         {SupPid, Conn}
     end,
     fun({SupPid, Conn}) ->
@@ -1097,7 +1086,7 @@ constraint_violation_test_() ->
             {updated, 1} = pgsql_connection:sql_query("create temporary table tmp (id integer primary key, a_text text)", Conn),
             {updated, 1} = pgsql_connection:param_query("insert into tmp (id, a_text) values (?, ?)", [1, <<"hello">>], Conn),
             E = pgsql_connection:param_query("insert into tmp (id, a_text) values (?, ?)", [1, <<"world">>], Conn),
-            ?assertMatch({error, {pgsql_error, _}}, E),
+            ?assertMatch({error, _}, E),
             {error, Err} = E,
             ?assert(pgsql_error:is_integrity_constraint_violation(Err))
         end)
@@ -1108,7 +1097,7 @@ custom_enum_test_() ->
     {setup,
     fun() ->
         {ok, SupPid} = pgsql_connection_sup:start_link(),
-        Conn = pgsql_connection:open("test", "test"),
+        {ok, Conn} = pgsql_connection:open("test", "test"),
         pgsql_connection:sql_query("DROP TYPE IF EXISTS mood;", Conn),
         {SupPid, Conn}
     end,
@@ -1138,7 +1127,7 @@ custom_enum_native_test_() ->
     {setup,
     fun() ->
         {ok, SupPid} = pgsql_connection_sup:start_link(),
-        Conn = pgsql_connection:open("test", "test"),
+        {ok, Conn} = pgsql_connection:open("test", "test"),
         pgsql_connection:simple_query("DROP TYPE IF EXISTS mood;", Conn),
         {SupPid, Conn}
     end,
@@ -1168,7 +1157,7 @@ invalid_query_test_() ->
     {setup,
         fun() ->
                 {ok, SupPid} = pgsql_connection_sup:start_link(),
-                Conn = pgsql_connection:open("test", "test"),
+                {ok, Conn} = pgsql_connection:open("test", "test"),
                 {{create, table}, []} = pgsql_connection:simple_query("CREATE TEMPORARY TABLE tmp(id integer primary key, other text)", Conn),
                 {SupPid, Conn}
         end,
@@ -1185,9 +1174,9 @@ invalid_query_test_() ->
                                 ?assertEqual({{insert, 0, 1}, []}, R)
                         end),
                     ?_test(begin
-                                ?assertMatch({error, {pgsql_error, _Error}}, pgsql_connection:simple_query("FOO", Conn)),
-                                ?assertMatch({error, {pgsql_error, _Error}}, pgsql_connection:simple_query("FOO", [], Conn)),
-                                ?assertMatch({error, {pgsql_error, _Error}}, pgsql_connection:simple_query("FOO", [], 5000, Conn)),
+                                ?assertMatch({error, _Error}, pgsql_connection:simple_query("FOO", Conn)),
+                                ?assertMatch({error, _Error}, pgsql_connection:simple_query("FOO", [], Conn)),
+                                ?assertMatch({error, _Error}, pgsql_connection:simple_query("FOO", [], 5000, Conn)),
                                 % connection still usable
                                 R = pgsql_connection:extended_query("insert into tmp(id, other) values (2, $1)", ["toto"], Conn),
                                 ?assertEqual({{insert, 0, 1}, []}, R)
@@ -1196,8 +1185,8 @@ invalid_query_test_() ->
                                 {'begin',[]} = pgsql_connection:simple_query("BEGIN", Conn),
                                 R1 = pgsql_connection:extended_query("insert into tmp(id, other) values (3, $1)", ["toto"], Conn),
                                 ?assertEqual({{insert, 0, 1}, []}, R1),
-                                ?assertMatch({error, {pgsql_error, _Error}}, pgsql_connection:simple_query("FOO", [], 5000, Conn)),
-                                ?assertMatch({error, {pgsql_error, _Error}}, pgsql_connection:simple_query("FOO", [], 5000, Conn)),
+                                ?assertMatch({error, _Error}, pgsql_connection:simple_query("FOO", [], 5000, Conn)),
+                                ?assertMatch({error, _Error}, pgsql_connection:simple_query("FOO", [], 5000, Conn)),
                                 {'rollback',[]} = pgsql_connection:simple_query("COMMIT", Conn),
                                 % row 3 was not inserted.
                                 R1 = pgsql_connection:extended_query("insert into tmp(id, other) values (3, $1)", ["toto"], Conn),
@@ -1207,8 +1196,8 @@ invalid_query_test_() ->
                                 {'begin',[]} = pgsql_connection:simple_query("BEGIN", Conn),
                                 R1 = pgsql_connection:extended_query("insert into tmp(id, other) values (4, $1)", ["toto"], Conn),
                                 ?assertEqual({{insert, 0, 1}, []}, R1),
-                                ?assertMatch({error, {pgsql_error, _Error}}, pgsql_connection:extended_query("FOO", [], [], 5000, Conn)),
-                                ?assertMatch({error, {pgsql_error, _Error}}, pgsql_connection:extended_query("FOO", [], [], 5000, Conn)),
+                                ?assertMatch({error, _Error}, pgsql_connection:extended_query("FOO", [], [], 5000, Conn)),
+                                ?assertMatch({error, _Error}, pgsql_connection:extended_query("FOO", [], [], 5000, Conn)),
                                 {'rollback',[]} = pgsql_connection:simple_query("COMMIT", Conn),
                                 R1 = pgsql_connection:extended_query("insert into tmp(id, other) values (4, $1)", ["toto"], Conn),
                                 ?assertEqual({{insert, 0, 1}, []}, R1)
@@ -1217,7 +1206,7 @@ invalid_query_test_() ->
                                 {'begin',[]} = pgsql_connection:simple_query("BEGIN", Conn),
                                 R1 = pgsql_connection:extended_query("insert into tmp(id, other) values (5, $1)", ["toto"], Conn),
                                 ?assertEqual({{insert, 0, 1}, []}, R1),
-                                ?assertMatch({error, {pgsql_error, _Error}}, pgsql_connection:extended_query("FOO", [], [], 5000, Conn)),
+                                ?assertMatch({error, _Error}, pgsql_connection:extended_query("FOO", [], [], 5000, Conn)),
                                 {'rollback',[]} = pgsql_connection:simple_query("ROLLBACK", Conn),
                                 R1 = pgsql_connection:extended_query("insert into tmp(id, other) values (5, $1)", ["toto"], Conn),
                                 ?assertEqual({{insert, 0, 1}, []}, R1)
@@ -1226,7 +1215,7 @@ invalid_query_test_() ->
                                 {'begin',[]} = pgsql_connection:simple_query("BEGIN", Conn),
                                 R1 = pgsql_connection:extended_query("insert into tmp(id, other) values (6, $1)", ["toto"], Conn),
                                 ?assertEqual({{insert, 0, 1}, []}, R1),
-                                ?assertMatch({error, {pgsql_error, _Error}}, pgsql_connection:extended_query("FOO", [], [], 5000, Conn)),
+                                ?assertMatch({error, _Error}, pgsql_connection:extended_query("FOO", [], [], 5000, Conn)),
                                 {'rollback',[]} = pgsql_connection:simple_query("ROLLBACK", [], 5000, Conn),
                                 R1 = pgsql_connection:extended_query("insert into tmp(id, other) values (6, $1)", ["toto"], Conn),
                                 ?assertEqual({{insert, 0, 1}, []}, R1)
@@ -1240,7 +1229,7 @@ cancel_test_() ->
     {setup,
     fun() ->
         {ok, SupPid} = pgsql_connection_sup:start_link(),
-        Conn = pgsql_connection:open("test", "test"),
+        {ok, Conn} = pgsql_connection:open("test", "test"),
         {SupPid, Conn}
     end,
     fun({SupPid, Conn}) ->
@@ -1258,9 +1247,8 @@ cancel_test_() ->
             ?assertEqual(ok, pgsql_connection:cancel(Conn)),
             receive
                 {async_result, R} ->
-                    ?assertMatch({error, {pgsql_error, _}}, R),
-                    {error, {pgsql_error, F}} = R,
-                    {code, Code} = lists:keyfind(code, 1, F),
+                    ?assertMatch({error, _}, R),
+                    {error, #{code := Code}} = R,
                     ?assertEqual(Code, <<"57014">>)
             end
         end)
@@ -1271,7 +1259,7 @@ pending_test_() ->
     {setup,
     fun() ->
         {ok, SupPid} = pgsql_connection_sup:start_link(),
-        Conn = pgsql_connection:open("test", "test"),
+        {ok, Conn} = pgsql_connection:open("test", "test"),
         {SupPid, Conn}
     end,
     fun({SupPid, Conn}) ->
@@ -1325,7 +1313,7 @@ batch_test_() ->
     {setup,
     fun() ->
         {ok, SupPid} = pgsql_connection_sup:start_link(),
-        Conn = pgsql_connection:open("test", "test"),
+        {ok, Conn} = pgsql_connection:open("test", "test"),
         {SupPid, Conn}
     end,
     fun({SupPid, Conn}) ->
@@ -1356,8 +1344,8 @@ notify_test_() ->
         AsyncProcess = spawn_link(fun() ->
             async_process_loop(undefined)
         end),
-        Conn1 = pgsql_connection:open([{database, "test"}, {user, "test"}, {async, AsyncProcess}]),
-        Conn2 = pgsql_connection:open("test", "test"),
+        {ok, Conn1} = pgsql_connection:open([{database, "test"}, {user, "test"}, {async, AsyncProcess}]),
+        {ok, Conn2} = pgsql_connection:open("test", "test"),
         {SupPid, Conn1, Conn2, AsyncProcess}
     end,
     fun({SupPid, Conn1, Conn2, AsyncProcess}) ->
@@ -1460,7 +1448,7 @@ notice_test_() ->
         NoticeProcess = spawn_link(fun() ->
             async_process_loop(undefined)
         end),
-        Conn1 = pgsql_connection:open([{database, "test"}, {user, "test"}, {async, NoticeProcess}]),
+        {ok, Conn1} = pgsql_connection:open([{database, "test"}, {user, "test"}, {async, NoticeProcess}]),
         {SupPid, Conn1, NoticeProcess}
     end,
     fun({SupPid, Conn1, NoticeProcess}) ->

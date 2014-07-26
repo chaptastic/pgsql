@@ -18,17 +18,13 @@
     | internal_query | where | file | line | routine | {unknown, byte()}.
 -type pgsql_error_and_mention_field() ::
     {pgsql_error_and_mention_field_type(), binary()}.
--type pgsql_error() :: {pgsql_error, [pgsql_error_and_mention_field()]}.
+-type pgsql_error() :: map().
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 -spec is_integrity_constraint_violation(pgsql_error()) -> boolean().
-is_integrity_constraint_violation({pgsql_error, Fields}) ->
-    case lists:keyfind(code, 1, Fields) of
-        {code, <<"23", _SubClass:3/binary>>} -> true;   %% iso 9075-2 §22.1
-        {code, <<_Other:5/binary>>} -> false;
-        false -> false
-    end.
+is_integrity_constraint_violation(#{code := <<"23", _SubClass:3/binary>>}) -> true; %% iso 9075-2 §22.1
+is_integrity_constraint_violation(_) -> false.
 
 -spec is_in_failed_sql_transaction(pgsql_error()) -> boolean().
-is_in_failed_sql_transaction({pgsql_error, Fields}) ->
-    {code, <<"25P02">>} =:= lists:keyfind(code, 1, Fields). %% PostgreSQL extension
+is_in_failed_sql_transaction(#{code := <<"25P02">>}) -> true; %% PostgreSQL extension
+is_in_failed_sql_transaction(_) -> false.

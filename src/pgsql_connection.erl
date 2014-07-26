@@ -95,7 +95,7 @@
 %% Types
 %% ========================================================================= %%
 
--type pgsql_connection() :: {pgsql_connection, pid()}.
+-type pgsql_connection() :: pid().
 
 -type n_rows() :: integer().
 -type row() :: tuple().
@@ -174,55 +174,49 @@
     |   {result, any()}.
 
 %%--------------------------------------------------------------------
-%% @doc Open a connection to a database, throws an error if it failed.
+%% @doc Open a connection to a database.
 %% 
--spec open(iodata() | open_options()) -> pgsql_connection().
+-spec open(iodata() | open_options()) -> open_result().
 open([Option | _OptionsT] = Options) when is_tuple(Option) orelse is_atom(Option) ->
-    open0(Options);
+    pgsql_connection_sup:start_child(Options);
 open(Database) ->
     open(Database, ?DEFAULT_USER).
 
 %%--------------------------------------------------------------------
-%% @doc Open a connection to a database, throws an error if it failed.
+%% @doc Open a connection to a database.
 %% 
--spec open(iodata(), iodata()) -> pgsql_connection().
+-spec open(iodata(), iodata()) -> open_result().
 open(Database, User) ->
     open(Database, User, ?DEFAULT_PASSWORD).
 
 %%--------------------------------------------------------------------
-%% @doc Open a connection to a database, throws an error if it failed.
+%% @doc Open a connection to a database.
 %% 
--spec open(iodata(), iodata(), iodata()) -> pgsql_connection().
+-spec open(iodata(), iodata(), iodata()) -> open_result().
 open(Database, User, Password) ->
     open(?DEFAULT_HOST, Database, User, Password).
 
 %%--------------------------------------------------------------------
-%% @doc Open a connection to a database, throws an error if it failed.
+%% @doc Open a connection to a database.
 %% 
--spec open(string(), string(), string(), string()) -> pgsql_connection().
+-spec open(string(), string(), string(), string()) -> open_result().
 open(Host, Database, User, Password) ->
     open(Host, Database, User, Password, []).
 
 %%--------------------------------------------------------------------
-%% @doc Open a connection to a database, throws an error if it failed.
+%% @doc Open a connection to a database.
 %% 
--spec open(string(), string(), string(), string(), open_options()) -> pgsql_connection().
+-spec open(string(), string(), string(), string(), open_options()) -> open_result().
+-type open_result() :: {ok, pgsql_connection()} | {error, pgsql_error:pgsql_error()}.
 open(Host, Database, User, Password, Options0) ->
     Options = [{host, Host}, {database, Database}, {user, User}, {password, Password} | Options0],
-    open0(Options).
-
-open0(Options) ->
-    case pgsql_connection_sup:start_child(Options) of
-        {ok, Pid} ->
-            {pgsql_connection, Pid};
-        {error, Error} -> throw(Error)
-    end.
+    pgsql_connection_sup:start_child(Options).
 
 %%--------------------------------------------------------------------
 %% @doc Close a connection.
 %% 
 -spec close(pgsql_connection()) -> ok.
-close({pgsql_connection, Pid}) ->
+close(Pid) when is_pid(Pid) ->
     MonitorRef = erlang:monitor(process, Pid),
     exit(Pid, shutdown),
     receive {'DOWN', MonitorRef, process, Pid, _Info} -> ok end.
@@ -284,7 +278,7 @@ simple_query(Query, QueryOptions, Connection) ->
 %% should not be mixed with calls to simple_query/4.
 %%
 -spec simple_query(iodata(), query_options(), timeout(), pgsql_connection()) -> result_tuple() | {error, any()}.
-simple_query(Query, QueryOptions, Timeout, {pgsql_connection, ConnectionPid}) ->
+simple_query(Query, QueryOptions, Timeout, ConnectionPid) ->
     call_and_retry(ConnectionPid, {simple_query, Query, QueryOptions, Timeout}, proplists:get_bool(retry, QueryOptions), adjust_timeout(Timeout)).
 
 %%--------------------------------------------------------------------
@@ -302,7 +296,7 @@ extended_query(Query, Parameters, QueryOptions, Connection) ->
 %% See discussion of simple_query/4 about timeout values.
 %%
 -spec extended_query(iodata(), [any()], query_options(), timeout(), pgsql_connection()) -> result_tuple() | {error, any()}.
-extended_query(Query, Parameters, QueryOptions, Timeout, {pgsql_connection, ConnectionPid}) ->
+extended_query(Query, Parameters, QueryOptions, Timeout, ConnectionPid) ->
     call_and_retry(ConnectionPid, {extended_query, Query, Parameters, QueryOptions, Timeout}, proplists:get_bool(retry, QueryOptions), adjust_timeout(Timeout)).
 
 %%--------------------------------------------------------------------
@@ -317,7 +311,7 @@ batch_query(Query, Parameters, QueryOptions, Connection) ->
     batch_query(Query, Parameters, QueryOptions, ?REQUEST_TIMEOUT, Connection).
 
 -spec batch_query(iodata(), [any()], query_options(), timeout(), pgsql_connection()) -> [result_tuple()] | {error, any()}.
-batch_query(Query, Parameters, QueryOptions, Timeout, {pgsql_connection, ConnectionPid}) ->
+batch_query(Query, Parameters, QueryOptions, Timeout, ConnectionPid) ->
     call_and_retry(ConnectionPid, {batch_query, Query, Parameters, QueryOptions, Timeout}, proplists:get_bool(retry, QueryOptions), adjust_timeout(Timeout)).
 
 %%--------------------------------------------------------------------
@@ -337,7 +331,7 @@ fold(Function, Acc0, Query, Parameters, QueryOptions, Connection) ->
     fold(Function, Acc0, Query, Parameters, QueryOptions, ?REQUEST_TIMEOUT, Connection).
 
 -spec fold(fun((tuple(), Acc) -> Acc), Acc, iodata(), [any()], query_options(), timeout(), pgsql_connection()) -> {ok, Acc} | {error, any()}.
-fold(Function, Acc0, Query, Parameters, QueryOptions, Timeout, {pgsql_connection, ConnectionPid}) ->
+fold(Function, Acc0, Query, Parameters, QueryOptions, Timeout, ConnectionPid) ->
     call_and_retry(ConnectionPid, {fold, Query, Parameters, Function, Acc0, QueryOptions, Timeout}, proplists:get_bool(retry, QueryOptions), adjust_timeout(Timeout)).
 
 %%--------------------------------------------------------------------
@@ -357,7 +351,7 @@ map(Function, Query, Parameters, QueryOptions, Connection) ->
     map(Function, Query, Parameters, QueryOptions, ?REQUEST_TIMEOUT, Connection).
 
 -spec map(fun((tuple()) -> Any), iodata(), [any()], query_options(), timeout(), pgsql_connection()) -> {ok, [Any]} | {error, any()}.
-map(Function, Query, Parameters, QueryOptions, Timeout, {pgsql_connection, ConnectionPid}) ->
+map(Function, Query, Parameters, QueryOptions, Timeout, ConnectionPid) ->
     call_and_retry(ConnectionPid, {map, Query, Parameters, Function, QueryOptions, Timeout}, proplists:get_bool(retry, QueryOptions), adjust_timeout(Timeout)).
 
 %%--------------------------------------------------------------------
@@ -377,14 +371,14 @@ foreach(Function, Query, Parameters, QueryOptions, Connection) ->
     foreach(Function, Query, Parameters, QueryOptions, ?REQUEST_TIMEOUT, Connection).
 
 -spec foreach(fun((tuple()) -> any()), iodata(), [any()], query_options(), timeout(), pgsql_connection()) -> ok | {error, any()}.
-foreach(Function, Query, Parameters, QueryOptions, Timeout, {pgsql_connection, ConnectionPid}) ->
+foreach(Function, Query, Parameters, QueryOptions, Timeout, ConnectionPid) ->
     call_and_retry(ConnectionPid, {foreach, Query, Parameters, Function, QueryOptions, Timeout}, proplists:get_bool(retry, QueryOptions), adjust_timeout(Timeout)).
 
 %%--------------------------------------------------------------------
 %% @doc Cancel the current query.
 %%
 -spec cancel(pgsql_connection()) -> ok | {error, any()}.
-cancel({pgsql_connection, ConnectionPid}) ->
+cancel(ConnectionPid) when is_pid(ConnectionPid)  ->
     gen_server:call(ConnectionPid, cancel, ?REQUEST_TIMEOUT).
 
 %%--------------------------------------------------------------------
@@ -392,14 +386,14 @@ cancel({pgsql_connection, ConnectionPid}) ->
 %% <code>{pgsql, Connection, {notification, ProcID, Channel, Payload}}</code>
 %%
 -spec subscribe(pid(), pgsql_connection()) -> ok | {error, any()}.
-subscribe(Pid, {pgsql_connection, ConnectionPid}) ->
+subscribe(Pid, ConnectionPid) when is_pid(ConnectionPid), is_pid(Pid) ->
     gen_server:cast(ConnectionPid, {subscribe, Pid}).
 
 %%--------------------------------------------------------------------
 %% @doc Unsubscribe to notifications.
 %%
 -spec unsubscribe(pid(), pgsql_connection()) -> ok | {error, any()}.
-unsubscribe(Pid, {pgsql_connection, ConnectionPid}) ->
+unsubscribe(Pid, ConnectionPid) when is_pid(ConnectionPid), is_pid(Pid) ->
     gen_server:cast(ConnectionPid, {unsubscribe, Pid}).
 
 %%====================================================================
@@ -600,7 +594,7 @@ pgsql_setup_startup(#state{socket = {SockModule, Sock} = Socket, options = Optio
         ok ->
             case receive_message(Socket, sync, Subscribers) of
                 {ok, #error_response{fields = Fields}} ->
-                    {error, {pgsql_error, Fields}};
+                    {error, maps:from_list(Fields)};
                 {ok, #authentication_ok{}} ->
                     pgsql_setup_finish(Socket, State0);
                 {ok, #authentication_kerberos_v5{}} ->
@@ -645,7 +639,7 @@ pgsql_setup_authenticate_password({SockModule, Sock} = Socket, Password, #state{
         ok ->
             case receive_message(Socket, sync, Subscribers) of
                 {ok, #error_response{fields = Fields}} ->
-                    {error, {pgsql_error, Fields}};
+                    {error, maps:from_list(Fields)};
                 {ok, #authentication_ok{}} ->
                     pgsql_setup_finish(Socket, State0);
                 {ok, UnexpectedMessage} ->
@@ -665,7 +659,7 @@ pgsql_setup_finish(Socket, #state{subscribers = Subscribers} = State0) ->
         {ok, #ready_for_query{}} ->
             {ok, State0};
         {ok, #error_response{fields = Fields}} ->
-            {error, {pgsql_error, Fields}};
+            {error, maps:from_list(Fields)};
         {ok, Message} ->
             {error, {unexpected_message, Message}};
         {error, _} = ReceiveError -> ReceiveError
@@ -724,7 +718,7 @@ pgsql_simple_query(Query, Timeout, From, #state{socket = {SockModule, Sock}} = S
 % fail but set only applies to the transaction anyway.
 -spec set_succeeded_or_within_failed_transaction({set, []} | {error, pgsql_error:pgsql_error()}) -> boolean().
 set_succeeded_or_within_failed_transaction({set, []}) -> true;
-set_succeeded_or_within_failed_transaction({error, {pgsql_error, _} = Error}) ->
+set_succeeded_or_within_failed_transaction({error, Error}) ->
     pgsql_error:is_in_failed_sql_transaction(Error).
 
 -spec pgsql_simple_query0(iodata(), sync, #state{}) -> {tuple(), #state{}};
@@ -762,7 +756,7 @@ pgsql_simple_query_loop(Result0, Acc, AsyncT, #state{socket = Socket, subscriber
         {ok, #empty_query_response{}} ->
             pgsql_simple_query_loop(Result0, Acc, AsyncT, State0);
         {ok, #error_response{fields = Fields}} ->
-            Error = {error, {pgsql_error, Fields}},
+            Error = {error, maps:from_list(Fields)},
             Acc1 = [Error | Acc],
             pgsql_simple_query_loop([], Acc1, AsyncT, State0);
         {ok, #ready_for_query{}} ->
@@ -964,10 +958,10 @@ pgsql_extended_query_receive_loop0(#portal_suspended{}, LoopState, Fun, Acc0, Fi
 pgsql_extended_query_receive_loop0(#ready_for_query{}, {result, Result}, _Fun, _Acc0, _FinalizeFun, _MaxRowsStep, AsyncT, State0) ->
     return_async(Result, AsyncT, State0);
 pgsql_extended_query_receive_loop0(#error_response{fields = Fields}, _LoopState, _Fun, _Acc0, _FinalizeFun, 0, AsyncT, State0) ->
-    Error = {error, {pgsql_error, Fields}},
+    Error = {error, maps:from_list(Fields)},
     flush_until_ready_for_query(Error, AsyncT, State0);
 pgsql_extended_query_receive_loop0(#error_response{fields = Fields}, _LoopState, _Fun, _Acc0, _FinalizeFun, _MaxRowsStep, AsyncT, #state{socket = {SockModule, Sock}} = State0) ->
-    Error = {error, {pgsql_error, Fields}},
+    Error = {error, maps:from_list(Fields)},
     case SockModule:send(Sock, pgsql_protocol:encode_sync_message()) of
         ok -> flush_until_ready_for_query(Error, AsyncT, State0);
         {error, _} = SendSyncPacketError -> return_async(SendSyncPacketError, AsyncT, State0)
@@ -1095,11 +1089,10 @@ receive_message({SockModule, Sock}, AsyncT, Subscribers) ->
             sync | {async, pid(), fun((any()) -> ok)},
             [{pid(), reference()}]) -> ok.
 broadcast_to_subscribers(Packet, AsyncT, Subscribers) ->
-    ConnPid = case AsyncT of
+    Connection = case AsyncT of
         sync -> self();
         {async, Pid, _Fun} -> Pid
     end,
-    Connection = {?MODULE, ConnPid},
     What = case Packet of
         #notification_response{procid = ProcID, channel = Channel, payload = Payload} -> {notification, ProcID, Channel, Payload};
         #notice_response{fields = Fields} -> {notice, Fields}
@@ -1160,7 +1153,7 @@ native_to_odbc({set, []}) -> {updated, 0};
 native_to_odbc({listen, []}) -> {updated, 0};
 native_to_odbc({notify, []}) -> {updated, 0};
 native_to_odbc({'do', []}) -> {updated, 0};
-native_to_odbc({Other, []}) -> {error, {pgsql_error, {unknown_command, Other}}}.
+native_to_odbc({Other, []}) -> {error, {unknown_command, Other}}.
 
 adjust_timeout(infinity) -> infinity;
 adjust_timeout(Timeout) -> Timeout + ?TIMEOUT_GEN_SERVER_CALL_DELTA.
@@ -1203,8 +1196,7 @@ oob_update_oid_map_if_required(OIDs, #state{oidmap = OIDMap} = State0) ->
 
 oob_update_oid_map(#state{options = Options0} = State0) ->
     OOBOptions =  lists:keystore(fetch_oid_map, 1, Options0, {fetch_oid_map, false}),
-    {ok, Pid} = pgsql_connection_sup:start_child(OOBOptions),
-    SubConnection = {pgsql_connection, Pid},
+    {ok, SubConnection} = pgsql_connection_sup:start_child(OOBOptions),
     {ok, NewOIDMap} = fold(fun({Oid, Typename}, AccTypes) ->
         gb_trees:enter(Oid, binary_to_atom(Typename, utf8), AccTypes)
     end, State0#state.oidmap, "SELECT oid, typname FROM pg_type", SubConnection),
@@ -1326,7 +1318,7 @@ do_unsubscribe(Pid, List) ->
 %% @doc Send a call message to the gen server, retrying if the result is
 %% {error, closed} and the option retry is set to true.
 %%
-call_and_retry(ConnPid, Command, Retry, Timeout) ->
+call_and_retry(ConnPid, Command, Retry, Timeout) when is_pid(ConnPid) ->
     case gen_server:call(ConnPid, {do_query, Command}, Timeout) of
         {error, closed} when Retry -> 
             call_and_retry(ConnPid, Command, Retry, Timeout);
