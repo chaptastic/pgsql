@@ -98,15 +98,17 @@
 -type pgsql_connection() :: pid().
 
 -type n_rows() :: integer().
+-type fields() :: [field()].
+-type field() :: binary().
 -type row() :: tuple().
 -type rows() :: [row()].
 -type odbc_result_tuple() :: {updated, n_rows()} | {updated, n_rows(), rows()} | {selected, rows()}.
 
 -type result_tuple() ::
-    {'begin' | commit | 'do' | listen | notify | rollback | set | {declare, cursor} | {lock, table}, []}
-    | {{insert, integer(), integer()}, rows()}
-    | {{copy | delete | fetch | move | select | update, integer()}, rows()}
-    | {{alter | create | drop, atom()} | {start, transaction}, []}.
+    {'begin' | commit | 'do' | listen | notify | rollback | set | show | {declare, cursor} | {lock, table}, [], []}
+    | {{insert, integer(), integer()}, fields(), rows()}
+    | {{copy | delete | fetch | move | select | update, integer()}, fields(), rows()}
+    | {{alter | create | drop, atom()} | {start, transaction}, [], []}.
 
 % A gen_tcp or SSL socket.
 -type prim_socket() :: port() | tuple().
@@ -318,19 +320,19 @@ batch_query(ConnectionPid, Query, Parameters, QueryOptions, Timeout) ->
 %% @doc Fold over results of a given query.
 %% The function is evaluated within the connection's process.
 %%
--spec fold(fun((tuple(), Acc) -> Acc), Acc, pgsql_connection(), iodata()) -> {ok, Acc} | {error, any()}.
+-spec fold(fun((fields(), row(), Acc) -> Acc), Acc, pgsql_connection(), iodata()) -> {ok, Acc} | {error, any()}.
 fold(Function, Acc0, Connection, Query) ->
     fold(Function, Acc0, Connection, Query, []).
 
--spec fold(fun((tuple(), Acc) -> Acc), Acc, pgsql_connection(), iodata(), [any()]) -> {ok, Acc} | {error, any()}.
+-spec fold(fun((fields(), row(), Acc) -> Acc), Acc, pgsql_connection(), iodata(), [any()]) -> {ok, Acc} | {error, any()}.
 fold(Function, Acc0, Connection, Query, Parameters) ->
     fold(Function, Acc0, Connection, Query, Parameters, []).
 
--spec fold(fun((tuple(), Acc) -> Acc), Acc, pgsql_connection(), iodata(), [any()], query_options()) -> {ok, Acc} | {error, any()}.
+-spec fold(fun((fields(), row(), Acc) -> Acc), Acc, pgsql_connection(), iodata(), [any()], query_options()) -> {ok, Acc} | {error, any()}.
 fold(Function, Acc0, Connection, Query, Parameters, QueryOptions) ->
     fold(Function, Acc0, Connection, Query, Parameters, QueryOptions, ?REQUEST_TIMEOUT).
 
--spec fold(fun((tuple(), Acc) -> Acc), Acc, pgsql_connection(), iodata(), [any()], query_options(), timeout()) -> {ok, Acc} | {error, any()}.
+-spec fold(fun((fields(), row(), Acc) -> Acc), Acc, pgsql_connection(), iodata(), [any()], query_options(), timeout()) -> {ok, Acc} | {error, any()}.
 fold(Function, Acc0, ConnectionPid, Query, Parameters, QueryOptions, Timeout) ->
     call_and_retry(ConnectionPid, {fold, Query, Parameters, Function, Acc0, QueryOptions, Timeout}, proplists:get_bool(retry, QueryOptions), adjust_timeout(Timeout)).
 
@@ -338,19 +340,19 @@ fold(Function, Acc0, ConnectionPid, Query, Parameters, QueryOptions, Timeout) ->
 %% @doc Map results of a given query.
 %% The function is evaluated within the connection's process.
 %%
--spec map(fun((tuple()) -> Any), pgsql_connection(), iodata()) -> {ok, [Any]} | {error, any()}.
+-spec map(fun((fields(), row()) -> Any), pgsql_connection(), iodata()) -> {ok, [Any]} | {error, any()}.
 map(Function, Connection, Query) ->
     map(Function, Connection, Query, []).
 
--spec map(fun((tuple()) -> Any), pgsql_connection(), iodata(), [any()]) -> {ok, [Any]} | {error, any()}.
+-spec map(fun((fields(), row()) -> Any), pgsql_connection(), iodata(), [any()]) -> {ok, [Any]} | {error, any()}.
 map(Function, Connection, Query, Parameters) ->
     map(Function, Connection, Query, Parameters, []).
 
--spec map(fun((tuple()) -> Any), pgsql_connection(), iodata(), [any()], query_options()) -> {ok, [Any]} | {error, any()}.
+-spec map(fun((fields(), row()) -> Any), pgsql_connection(), iodata(), [any()], query_options()) -> {ok, [Any]} | {error, any()}.
 map(Function, Connection, Query, Parameters, QueryOptions) ->
     map(Function, Connection, Query, Parameters, QueryOptions, ?REQUEST_TIMEOUT).
 
--spec map(fun((tuple()) -> Any), pgsql_connection(), iodata(), [any()], query_options(), timeout()) -> {ok, [Any]} | {error, any()}.
+-spec map(fun((fields(), row()) -> Any), pgsql_connection(), iodata(), [any()], query_options(), timeout()) -> {ok, [Any]} | {error, any()}.
 map(Function, ConnectionPid, Query, Parameters, QueryOptions, Timeout) ->
     call_and_retry(ConnectionPid, {map, Query, Parameters, Function, QueryOptions, Timeout}, proplists:get_bool(retry, QueryOptions), adjust_timeout(Timeout)).
 
@@ -358,19 +360,19 @@ map(Function, ConnectionPid, Query, Parameters, QueryOptions, Timeout) ->
 %% @doc Iterate on results of a given query.
 %% The function is evaluated within the connection's process.
 %%
--spec foreach(fun((tuple()) -> any()), pgsql_connection(), iodata()) -> ok | {error, any()}.
+-spec foreach(fun((fields(), row()) -> any()), pgsql_connection(), iodata()) -> ok | {error, any()}.
 foreach(Function, Connection, Query) ->
     foreach(Function, Connection, Query, []).
 
--spec foreach(fun((tuple()) -> any()), pgsql_connection(), iodata(), [any()]) -> ok | {error, any()}.
+-spec foreach(fun((fields(), row()) -> any()), pgsql_connection(), iodata(), [any()]) -> ok | {error, any()}.
 foreach(Function, Connection, Query, Parameters) ->
     foreach(Function, Connection, Query, Parameters, []).
 
--spec foreach(fun((tuple()) -> any()), pgsql_connection(), iodata(), [any()], query_options()) -> ok | {error, any()}.
+-spec foreach(fun((fields(), row()) -> any()), pgsql_connection(), iodata(), [any()], query_options()) -> ok | {error, any()}.
 foreach(Function, Connection, Query, Parameters, QueryOptions) ->
     foreach(Function, Connection, Query, Parameters, QueryOptions, ?REQUEST_TIMEOUT).
 
--spec foreach(fun((tuple()) -> any()), pgsql_connection(), iodata(), [any()], query_options(), timeout()) -> ok | {error, any()}.
+-spec foreach(fun((fields(), row()) -> any()), pgsql_connection(), iodata(), [any()], query_options(), timeout()) -> ok | {error, any()}.
 foreach(Function, ConnectionPid, Query, Parameters, QueryOptions, Timeout) ->
     call_and_retry(ConnectionPid, {foreach, Query, Parameters, Function, QueryOptions, Timeout}, proplists:get_bool(retry, QueryOptions), adjust_timeout(Timeout)).
 
@@ -716,8 +718,8 @@ pgsql_simple_query(Query, Timeout, From, #state{socket = {SockModule, Sock}} = S
 % (unless it is a rollback).
 % If set succeeded within a transaction, but the query failed, the reset may
 % fail but set only applies to the transaction anyway.
--spec set_succeeded_or_within_failed_transaction({set, []} | {error, pgsql_error:pgsql_error()}) -> boolean().
-set_succeeded_or_within_failed_transaction({set, []}) -> true;
+-spec set_succeeded_or_within_failed_transaction({set, [], []} | {error, pgsql_error:pgsql_error()}) -> boolean().
+set_succeeded_or_within_failed_transaction({set, [], []}) -> true;
 set_succeeded_or_within_failed_transaction({error, Error}) ->
     pgsql_error:is_in_failed_sql_transaction(Error).
 
@@ -745,12 +747,12 @@ pgsql_simple_query_loop(Result0, Acc, AsyncT, #state{socket = Socket, subscriber
             AccRows1 = [DecodedRow | AccRows0],
             pgsql_simple_query_loop({rows, Fields, AccRows1}, Acc, AsyncT, State0);
         {ok, #command_complete{command_tag = Tag}} ->
-            ResultRows = case Result0 of
-                {rows, _Descs, AccRows} -> lists:reverse(AccRows);
-                [] -> []
+            {ResultFields, ResultRows} = case Result0 of
+                {rows, Fields, AccRows} -> {result_fields(Fields), lists:reverse(AccRows)};
+                [] -> {[], []}
             end,
             DecodedTag = decode_tag(Tag),
-            Result = {DecodedTag, ResultRows},
+            Result = {DecodedTag, ResultFields, ResultRows},
             Acc1 = [Result | Acc],
             pgsql_simple_query_loop([], Acc1, AsyncT, State0);
         {ok, #empty_query_response{}} ->
@@ -935,7 +937,7 @@ pgsql_extended_query_receive_loop0(#row_description{fields = Fields}, row_descri
     pgsql_extended_query_receive_loop({rows, Fields}, Fun, Acc0, FinalizeFun, MaxRowsStep, AsyncT, State1);
 pgsql_extended_query_receive_loop0(#data_row{values = Values}, {rows, Fields} = LoopState, Fun, Acc0, FinalizeFun, MaxRowsStep, AsyncT, State0) ->
     DecodedRow = pgsql_protocol:decode_row(Fields, Values, State0#state.oidmap, State0#state.integer_datetimes),
-    Acc1 = Fun(DecodedRow, Acc0),
+    Acc1 = Fun(Fields, DecodedRow, Acc0),
     pgsql_extended_query_receive_loop(LoopState, Fun, Acc1, FinalizeFun, MaxRowsStep, AsyncT, State0);
 pgsql_extended_query_receive_loop0(#command_complete{command_tag = Tag}, _LoopState, Fun, Acc0, FinalizeFun, MaxRowsStep, AsyncT, #state{socket = {SockModule, Sock}} = State0) ->
     Result = FinalizeFun(Tag, Acc0),
@@ -998,23 +1000,24 @@ return_async(Result, sync, #state{} = State) ->
 return_async(Result, {async, _ConnPid, Callback}, #state{}) ->
     Callback(Result).
 
-extended_query_fn(Row, AccRows) -> [Row | AccRows].
+extended_query_fn(Fields, Row, {_, AccRows}) -> {Fields, [Row | AccRows]}.
 
-extended_query_finalize(Tag, AccRows) ->
-    Rows = lists:reverse(AccRows),
+extended_query_finalize(Tag, {Fields, Rows}) ->
+    ResultFields = result_fields(Fields),
+    ResultRows = lists:reverse(Rows),
     DecodedTag = decode_tag(Tag),
-    {DecodedTag, Rows}.
+    {DecodedTag, ResultFields, ResultRows}.
 
 fold_finalize(_Tag, Acc) ->
     {ok, Acc}.
 
-map_fn(Row, {Function, Acc}) -> {Function, [Function(Row) | Acc]}.
+map_fn(Fields, Row, {Function, Acc}) -> {Function, [Function(Fields, Row) | Acc]}.
     
 map_finalize(_Tag, {_Function, Acc}) ->
     {ok, lists:reverse(Acc)}.
 
-foreach_fn(Row, Function) ->
-    Function(Row),
+foreach_fn(Fields, Row, Function) ->
+    Function(Fields, Row),
     Function.
 
 foreach_finalize(_Tag, _Function) ->
@@ -1133,27 +1136,28 @@ decode_object(Object) ->
 %%
 -spec native_to_odbc(result_tuple()) -> odbc_result_tuple() | {error, any()}.
 native_to_odbc({error, _} = Error) -> Error;
-native_to_odbc({{insert, _TableOID, Count}, []}) -> {updated, Count};
-native_to_odbc({{delete, Count}, []}) -> {updated, Count};
-native_to_odbc({{update, Count}, []}) -> {updated, Count};
-native_to_odbc({{move, Count}, []}) -> {updated, Count};
-native_to_odbc({{fetch, _Count}, []}) -> {updated, 0};
-native_to_odbc({{copy, Count}, []}) -> {updated, Count};
-native_to_odbc({{insert, _TableOID, Count}, Rows}) -> {updated, Count, Rows};
-native_to_odbc({{delete, Count}, Rows}) -> {updated, Count, Rows};
-native_to_odbc({{update, Count}, Rows}) -> {updated, Count, Rows};
-native_to_odbc({{select, _Count}, Rows}) -> {selected, Rows};
-native_to_odbc({{create, _What}, []}) -> {updated, 1};
-native_to_odbc({{drop, _What}, []}) -> {updated, 1};
-native_to_odbc({{alter, _What}, []}) -> {updated, 1};
-native_to_odbc({'begin', []}) -> {updated, 0};
-native_to_odbc({commit, []}) -> {updated, 0};
-%native_to_odbc({rollback, []}) -> {updated, 0};    -- make sure rollback fails.
-native_to_odbc({set, []}) -> {updated, 0};
-native_to_odbc({listen, []}) -> {updated, 0};
-native_to_odbc({notify, []}) -> {updated, 0};
-native_to_odbc({'do', []}) -> {updated, 0};
-native_to_odbc({Other, []}) -> {error, {unknown_command, Other}}.
+native_to_odbc({{insert, _TableOID, Count}, [], []}) -> {updated, Count};
+native_to_odbc({{delete, Count}, [], []}) -> {updated, Count};
+native_to_odbc({{update, Count}, [], []}) -> {updated, Count};
+native_to_odbc({{move, Count}, [], []}) -> {updated, Count};
+native_to_odbc({{fetch, _Count}, [], []}) -> {updated, 0};
+native_to_odbc({{copy, Count}, [], []}) -> {updated, Count};
+native_to_odbc({{insert, _TableOID, Count}, _Fields, Rows}) -> {updated, Count, Rows};
+native_to_odbc({{delete, Count}, _Fields, Rows}) -> {updated, Count, Rows};
+native_to_odbc({{update, Count}, _Fields, Rows}) -> {updated, Count, Rows};
+native_to_odbc({{select, _Count}, _Fields, Rows}) -> {selected, Rows};
+native_to_odbc({{create, _What}, [], []}) -> {updated, 1};
+native_to_odbc({{drop, _What}, [], []}) -> {updated, 1};
+native_to_odbc({{alter, _What}, [], []}) -> {updated, 1};
+native_to_odbc({'begin', [], []}) -> {updated, 0};
+native_to_odbc({commit, [], []}) -> {updated, 0};
+%native_to_odbc({rollback, [], []}) -> {updated, 0};    -- make sure rollback fails.
+native_to_odbc({set, [], []}) -> {updated, 0};
+native_to_odbc({show, _, Rows}) -> {selected, Rows};
+native_to_odbc({listen, [], []}) -> {updated, 0};
+native_to_odbc({notify, [], []}) -> {updated, 0};
+native_to_odbc({'do', [], []}) -> {updated, 0};
+native_to_odbc({Other, [], []}) -> {error, {unknown_command, Other}}.
 
 adjust_timeout(infinity) -> infinity;
 adjust_timeout(Timeout) -> Timeout + ?TIMEOUT_GEN_SERVER_CALL_DELTA.
@@ -1197,7 +1201,7 @@ oob_update_oid_map_if_required(OIDs, #state{oidmap = OIDMap} = State0) ->
 oob_update_oid_map(#state{options = Options0} = State0) ->
     OOBOptions =  lists:keystore(fetch_oid_map, 1, Options0, {fetch_oid_map, false}),
     {ok, SubConnection} = pgsql_connection_sup:start_child(OOBOptions),
-    {ok, NewOIDMap} = fold(fun({Oid, Typename}, AccTypes) ->
+    {ok, NewOIDMap} = fold(fun(_, {Oid, Typename}, AccTypes) ->
         gb_trees:enter(Oid, binary_to_atom(Typename, utf8), AccTypes)
     end, State0#state.oidmap, SubConnection, "SELECT oid, typname FROM pg_type"),
     close(SubConnection),
@@ -1207,10 +1211,16 @@ oob_update_oid_map(#state{options = Options0} = State0) ->
 %% @doc Update the OID Map inline (at setup).
 %%
 update_oid_map(#state{} = State0) ->
-    {{ok, NewOIDMap}, State1} = pgsql_extended_query0(<<"SELECT oid, typname FROM pg_type">>, [], fun({Oid, Typename}, AccTypes) ->
+    {{ok, NewOIDMap}, State1} = pgsql_extended_query0(<<"SELECT oid, typname FROM pg_type">>, [], fun(_, {Oid, Typename}, AccTypes) ->
         gb_trees:enter(Oid, binary_to_atom(Typename, utf8), AccTypes)
     end, State0#state.oidmap, fun fold_finalize/2, all, sync, State0),
     State1#state{oidmap = NewOIDMap}.
+
+%%--------------------------------------------------------------------
+%% @doc Build the result fields from [row_description_field]
+%%
+result_fields(Descs) ->
+    [iolist_to_binary(Name) || #row_description_field{name = Name} <- Descs].
 
 %%--------------------------------------------------------------------
 %% @doc Prepare socket for sending query: set it in passive mode or
@@ -1345,18 +1355,18 @@ do_query(Command, From, #state{pending = Pending} = State0) ->
 do_query0({simple_query, Query, _QueryOptions, Timeout}, From, State0) ->
     pgsql_simple_query(Query, Timeout, From, State0);
 do_query0({extended_query, Query, Parameters, _QueryOptions, Timeout}, From, State0) ->
-    pgsql_extended_query(Query, Parameters, fun extended_query_fn/2, [], fun extended_query_finalize/2, all, Timeout, From, State0);
+    pgsql_extended_query(Query, Parameters, fun extended_query_fn/3, {[], []}, fun extended_query_finalize/2, all, Timeout, From, State0);
 do_query0({batch_query, Query, ParametersList, _QueryOptions, Timeout}, From, State0) ->
-    pgsql_extended_query(Query, ParametersList, fun extended_query_fn/2, [], fun extended_query_finalize/2, batch, Timeout, From, State0);
+    pgsql_extended_query(Query, ParametersList, fun extended_query_fn/3, {[], []}, fun extended_query_finalize/2, batch, Timeout, From, State0);
 do_query0({fold, Query, Parameters, Function, Acc0, QueryOptions, Timeout}, From, #state{} = State0) ->
     MaxRowsStep = proplists:get_value(max_rows_step, QueryOptions, ?DEFAULT_MAX_ROWS_STEP),
     pgsql_extended_query(Query, Parameters, Function, Acc0, fun fold_finalize/2, {cursor, MaxRowsStep}, Timeout, From, State0);
 do_query0({map, Query, Parameters, Function, QueryOptions, Timeout}, From, #state{} = State0) ->
     MaxRowsStep = proplists:get_value(max_rows_step, QueryOptions, ?DEFAULT_MAX_ROWS_STEP),
-    pgsql_extended_query(Query, Parameters, fun map_fn/2, {Function, []}, fun map_finalize/2, {cursor, MaxRowsStep}, Timeout, From, State0);
+    pgsql_extended_query(Query, Parameters, fun map_fn/3, {Function, []}, fun map_finalize/2, {cursor, MaxRowsStep}, Timeout, From, State0);
 do_query0({foreach, Query, Parameters, Function, QueryOptions, Timeout}, From, #state{} = State0) ->
     MaxRowsStep = proplists:get_value(max_rows_step, QueryOptions, ?DEFAULT_MAX_ROWS_STEP),
-    pgsql_extended_query(Query, Parameters, fun foreach_fn/2, Function, fun foreach_finalize/2, {cursor, MaxRowsStep}, Timeout, From, State0).
+    pgsql_extended_query(Query, Parameters, fun foreach_fn/3, Function, fun foreach_finalize/2, {cursor, MaxRowsStep}, Timeout, From, State0).
 
 command_completed(Command, #state{current = Command, pending = []} = State) ->
     set_active_once(State),
