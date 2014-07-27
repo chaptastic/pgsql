@@ -1,5 +1,3 @@
 .eunit
-ebin
-.DS_Store
-.persistent_state
-target
+.pgsql.plt
+/ebin
