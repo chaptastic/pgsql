@@ -57,8 +57,6 @@
     param_query/3,
     param_query/4,
     param_query/5,
-    
-    convert_statement/1,
 
     % supervisor API
     start_link/1,
@@ -259,7 +257,7 @@ param_query(Connection, Query, Parameters, QueryOptions) ->
 
 -spec param_query(pgsql_connection(), iodata(), [any()], query_options(), timeout()) -> odbc_result_tuple() | {error, any()}.
 param_query(Connection, Query, Parameters, QueryOptions, Timeout) ->
-    ConvertedQuery = convert_statement(Query),
+    ConvertedQuery = convert_odbc_params(Query),
     Result = extended_query(Connection, ConvertedQuery, Parameters, QueryOptions, Timeout),
     native_to_odbc(Result).
 
@@ -1039,24 +1037,6 @@ set_parameter_async(Key, Value, {async, ConnPid, _}) ->
     gen_server:cast(ConnPid, {set_parameter, Key, Value}).
 
 %%--------------------------------------------------------------------
-%% @doc Convert a statement from the ? placeholder syntax to the $x placeholder
-%% syntax.
-%%
--spec convert_statement(binary() | string()) -> string().
-convert_statement(StatementStr) when is_list(StatementStr) ->
-    convert_statement_0(StatementStr, false, 1, []);
-convert_statement(StatementStr) when is_binary(StatementStr) ->
-    convert_statement(binary_to_list(StatementStr)).
-
-convert_statement_0([], _InString, _PlaceholderIndex, Acc) -> lists:reverse(Acc);
-convert_statement_0([$? | Tail], false, PlaceholderIndex, Acc) ->
-    convert_statement_0(Tail, false, PlaceholderIndex + 1, lists:reverse([$$ | integer_to_list(PlaceholderIndex)]) ++ Acc);
-convert_statement_0([$' | Tail], InString, PlaceholderIndex, Acc) ->
-    convert_statement_0(Tail, not InString, PlaceholderIndex, [$' | Acc]);
-convert_statement_0([H | Tail], InString, PlaceholderIndex, Acc) ->
-    convert_statement_0(Tail, InString, PlaceholderIndex, [H | Acc]).
-
-%%--------------------------------------------------------------------
 %% @doc Receive a single packet (in passive mode). Notifications and
 %% notices are broadcast to subscribers.
 %%
@@ -1158,6 +1138,24 @@ native_to_odbc({listen, [], []}) -> {updated, 0};
 native_to_odbc({notify, [], []}) -> {updated, 0};
 native_to_odbc({'do', [], []}) -> {updated, 0};
 native_to_odbc({Other, [], []}) -> {error, {unknown_command, Other}}.
+
+%%--------------------------------------------------------------------
+%% @doc Convert a statement from the ? placeholder syntax to the $x placeholder
+%% syntax.
+%%
+-spec convert_odbc_params(binary() | string()) -> string().
+convert_odbc_params(StatementStr) when is_list(StatementStr) ->
+    convert_odbc_params_0(StatementStr, false, 1, []);
+convert_odbc_params(StatementStr) when is_binary(StatementStr) ->
+    convert_odbc_params(binary_to_list(StatementStr)).
+
+convert_odbc_params_0([], _InString, _PlaceholderIndex, Acc) -> lists:reverse(Acc);
+convert_odbc_params_0([$? | Tail], false, PlaceholderIndex, Acc) ->
+    convert_odbc_params_0(Tail, false, PlaceholderIndex + 1, lists:reverse([$$ | integer_to_list(PlaceholderIndex)]) ++ Acc);
+convert_odbc_params_0([$' | Tail], InString, PlaceholderIndex, Acc) ->
+    convert_odbc_params_0(Tail, not InString, PlaceholderIndex, [$' | Acc]);
+convert_odbc_params_0([H | Tail], InString, PlaceholderIndex, Acc) ->
+    convert_odbc_params_0(Tail, InString, PlaceholderIndex, [H | Acc]).
 
 adjust_timeout(infinity) -> infinity;
 adjust_timeout(Timeout) -> Timeout + ?TIMEOUT_GEN_SERVER_CALL_DELTA.
