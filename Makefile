@@ -27,7 +27,7 @@ test-eunit:
 .$(PROJECT).plt: | deps
 	@echo "==> $(PROJECT) (dialyzer build-plt)"
 	@$(DIALYZER) --build_plt --output_plt .$(PROJECT).plt \
-		--apps erts kernel stdlib crypto compiler syntax_tools -r ./deps
+		--apps erts kernel stdlib crypto public_key ssl compiler syntax_tools -r ./deps
 
 dialyze: .$(PROJECT).plt
 	@echo "==> $(PROJECT) (dialyzer dialyze)"
