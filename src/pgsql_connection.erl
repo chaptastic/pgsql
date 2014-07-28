@@ -95,6 +95,9 @@
 
 -type pgsql_connection() :: pid().
 
+-type query() :: iodata().
+-type query_params() :: [any()] | map().
+
 -type n_rows() :: integer().
 -type fields() :: [field()].
 -type field() :: binary().
@@ -231,15 +234,15 @@ close(Pid) when is_pid(Pid) ->
 %% </ul>
 %% (the return types are compatible with ODBC's sql_query function).
 %% 
--spec sql_query(pgsql_connection(), iodata()) -> odbc_result_tuple() | {error, any()}.
+-spec sql_query(pgsql_connection(), query()) -> odbc_result_tuple() | {error, any()}.
 sql_query(Connection, Query) ->
     sql_query(Connection, Query, []).
 
--spec sql_query(pgsql_connection(), iodata(), query_options()) -> odbc_result_tuple() | {error, any()}.
+-spec sql_query(pgsql_connection(), query(), query_options()) -> odbc_result_tuple() | {error, any()}.
 sql_query(Connection, Query, QueryOptions) ->
     sql_query(Connection, Query, QueryOptions, ?REQUEST_TIMEOUT).
 
--spec sql_query(pgsql_connection(), iodata(), query_options(), timeout()) -> odbc_result_tuple() | {error, any()}.
+-spec sql_query(pgsql_connection(), query(), query_options(), timeout()) -> odbc_result_tuple() | {error, any()}.
 sql_query(Connection, Query, QueryOptions, Timeout) ->
     Result = simple_query(Connection, Query, QueryOptions, Timeout),
     native_to_odbc(Result).
@@ -247,16 +250,16 @@ sql_query(Connection, Query, QueryOptions, Timeout) ->
 %%--------------------------------------------------------------------
 %% @doc Perform a query with parameters.
 %%
--spec param_query(pgsql_connection(), iodata(), [any()]) -> odbc_result_tuple() | {error, any()}.
+-spec param_query(pgsql_connection(), query(), [any()]) -> odbc_result_tuple() | {error, any()}.
 param_query(Connection, Query, Parameters) ->
     param_query(Connection, Query, Parameters, []).
 
--spec param_query(pgsql_connection(), iodata(), [any()], query_options()) -> odbc_result_tuple() | {error, any()}.
+-spec param_query(pgsql_connection(), query(), [any()], query_options()) -> odbc_result_tuple() | {error, any()}.
 param_query(Connection, Query, Parameters, QueryOptions) ->
     param_query(Connection, Query, Parameters, QueryOptions, ?REQUEST_TIMEOUT).
 
--spec param_query(pgsql_connection(), iodata(), [any()], query_options(), timeout()) -> odbc_result_tuple() | {error, any()}.
-param_query(Connection, Query, Parameters, QueryOptions, Timeout) ->
+-spec param_query(pgsql_connection(), query(), [any()], query_options(), timeout()) -> odbc_result_tuple() | {error, any()}.
+param_query(Connection, Query, Parameters, QueryOptions, Timeout) when is_list(Parameters) ->
     ConvertedQuery = convert_odbc_params(Query),
     Result = extended_query(Connection, ConvertedQuery, Parameters, QueryOptions, Timeout),
     native_to_odbc(Result).
@@ -264,11 +267,11 @@ param_query(Connection, Query, Parameters, QueryOptions, Timeout) ->
 %%--------------------------------------------------------------------
 %% @doc Perform a simple query.
 %% 
--spec simple_query(pgsql_connection(), iodata()) -> result_tuple() | {error, any()}.
+-spec simple_query(pgsql_connection(), query()) -> result_tuple() | {error, any()}.
 simple_query(Connection, Query) ->
     simple_query(Connection, Query, []).
 
--spec simple_query(pgsql_connection(), iodata(), query_options()) -> result_tuple() | {error, any()}.
+-spec simple_query(pgsql_connection(), query(), query_options()) -> result_tuple() | {error, any()}.
 simple_query(Connection, Query, QueryOptions) ->
     simple_query(Connection, Query, QueryOptions, ?REQUEST_TIMEOUT).
 
@@ -277,101 +280,116 @@ simple_query(Connection, Query, QueryOptions) ->
 %% will confuse timeout logic and such manual handling of statement_timeout
 %% should not be mixed with calls to simple_query/4.
 %%
--spec simple_query(pgsql_connection(), iodata(), query_options(), timeout()) -> result_tuple() | {error, any()}.
+-spec simple_query(pgsql_connection(), query(), query_options(), timeout()) -> result_tuple() | {error, any()}.
 simple_query(ConnectionPid, Query, QueryOptions, Timeout) ->
     call_and_retry(ConnectionPid, {simple_query, Query, QueryOptions, Timeout}, proplists:get_bool(retry, QueryOptions), adjust_timeout(Timeout)).
 
 %%--------------------------------------------------------------------
 %% @doc Perform a query with parameters.
 %%
--spec extended_query(pgsql_connection(), iodata(), [any()]) -> result_tuple() | {error, any()}.
+-spec extended_query(pgsql_connection(), query(), query_params()) -> result_tuple() | {error, any()}.
 extended_query(Connection, Query, Parameters) ->
     extended_query(Connection, Query, Parameters, []).
 
--spec extended_query(pgsql_connection(), iodata(), [any()], query_options()) -> result_tuple() | {error, any()}.
+-spec extended_query(pgsql_connection(), query(), query_params(), query_options()) -> result_tuple() | {error, any()}.
 extended_query(Connection, Query, Parameters, QueryOptions) ->
     extended_query(Connection, Query, Parameters, QueryOptions, ?REQUEST_TIMEOUT).
 
 %% @doc Perform an extended query with query options and a timeout.
 %% See discussion of simple_query/4 about timeout values.
 %%
--spec extended_query(pgsql_connection(), iodata(), [any()], query_options(), timeout()) -> result_tuple() | {error, any()}.
-extended_query(ConnectionPid, Query, Parameters, QueryOptions, Timeout) ->
+-spec extended_query(pgsql_connection(), query(), query_params(), query_options(), timeout()) -> result_tuple() | {error, any()}.
+extended_query(ConnectionPid, Query, Parameters, QueryOptions, Timeout) when is_map(Parameters) ->
+    {Query1, Parameters1} = convert_named_params(Query, Parameters),
+    extended_query(ConnectionPid, Query1, Parameters1, QueryOptions, Timeout);
+extended_query(ConnectionPid, Query, Parameters, QueryOptions, Timeout) when is_list(Parameters) ->
     call_and_retry(ConnectionPid, {extended_query, Query, Parameters, QueryOptions, Timeout}, proplists:get_bool(retry, QueryOptions), adjust_timeout(Timeout)).
 
 %%--------------------------------------------------------------------
 %% @doc Perform a query several times with parameters.
 %%
--spec batch_query(pgsql_connection(), iodata(), [any()]) -> [result_tuple()] | {error, any()}.
+-spec batch_query(pgsql_connection(), query(), query_params()) -> [result_tuple()] | {error, any()}.
 batch_query(Connection, Query, Parameters) ->
     batch_query(Connection, Query, Parameters, []).
 
--spec batch_query(pgsql_connection(), iodata(), [any()], query_options()) -> [result_tuple()] | {error, any()}.
+-spec batch_query(pgsql_connection(), query(), query_params(), query_options()) -> [result_tuple()] | {error, any()}.
 batch_query(Connection, Query, Parameters, QueryOptions) ->
     batch_query(Connection, Query, Parameters, QueryOptions, ?REQUEST_TIMEOUT).
 
--spec batch_query(pgsql_connection(), iodata(), [any()], query_options(), timeout()) -> [result_tuple()] | {error, any()}.
-batch_query(ConnectionPid, Query, Parameters, QueryOptions, Timeout) ->
+-spec batch_query(pgsql_connection(), query(), query_params(), query_options(), timeout()) -> [result_tuple()] | {error, any()}.
+batch_query(ConnectionPid, Query, Parameters, QueryOptions, Timeout) when is_map(Parameters) ->
+    {Query1, Parameters1} = convert_named_params(Query, Parameters),
+    batch_query(ConnectionPid, Query1, Parameters1, QueryOptions, Timeout);
+batch_query(ConnectionPid, Query, Parameters, QueryOptions, Timeout) when is_list(Parameters) ->
     call_and_retry(ConnectionPid, {batch_query, Query, Parameters, QueryOptions, Timeout}, proplists:get_bool(retry, QueryOptions), adjust_timeout(Timeout)).
 
 %%--------------------------------------------------------------------
 %% @doc Fold over results of a given query.
 %% The function is evaluated within the connection's process.
 %%
--spec fold(fun((fields(), row(), Acc) -> Acc), Acc, pgsql_connection(), iodata()) -> {ok, Acc} | {error, any()}.
+-spec fold(fun((fields(), row(), Acc) -> Acc), Acc, pgsql_connection(), query()) -> {ok, Acc} | {error, any()}.
 fold(Function, Acc0, Connection, Query) ->
     fold(Function, Acc0, Connection, Query, []).
 
--spec fold(fun((fields(), row(), Acc) -> Acc), Acc, pgsql_connection(), iodata(), [any()]) -> {ok, Acc} | {error, any()}.
+-spec fold(fun((fields(), row(), Acc) -> Acc), Acc, pgsql_connection(), query(), query_params()) -> {ok, Acc} | {error, any()}.
 fold(Function, Acc0, Connection, Query, Parameters) ->
     fold(Function, Acc0, Connection, Query, Parameters, []).
 
--spec fold(fun((fields(), row(), Acc) -> Acc), Acc, pgsql_connection(), iodata(), [any()], query_options()) -> {ok, Acc} | {error, any()}.
+-spec fold(fun((fields(), row(), Acc) -> Acc), Acc, pgsql_connection(), query(), query_params(), query_options()) -> {ok, Acc} | {error, any()}.
 fold(Function, Acc0, Connection, Query, Parameters, QueryOptions) ->
     fold(Function, Acc0, Connection, Query, Parameters, QueryOptions, ?REQUEST_TIMEOUT).
 
--spec fold(fun((fields(), row(), Acc) -> Acc), Acc, pgsql_connection(), iodata(), [any()], query_options(), timeout()) -> {ok, Acc} | {error, any()}.
-fold(Function, Acc0, ConnectionPid, Query, Parameters, QueryOptions, Timeout) ->
+-spec fold(fun((fields(), row(), Acc) -> Acc), Acc, pgsql_connection(), query(), query_params(), query_options(), timeout()) -> {ok, Acc} | {error, any()}.
+fold(Function, Acc0, ConnectionPid, Query, Parameters, QueryOptions, Timeout) when is_map(Parameters) ->
+    {Query1, Parameters1} = convert_named_params(Query, Parameters),
+    fold(Function, Acc0, ConnectionPid, Query1, Parameters1, QueryOptions, Timeout);
+fold(Function, Acc0, ConnectionPid, Query, Parameters, QueryOptions, Timeout) when is_list(Parameters) ->
     call_and_retry(ConnectionPid, {fold, Query, Parameters, Function, Acc0, QueryOptions, Timeout}, proplists:get_bool(retry, QueryOptions), adjust_timeout(Timeout)).
 
 %%--------------------------------------------------------------------
 %% @doc Map results of a given query.
 %% The function is evaluated within the connection's process.
 %%
--spec map(fun((fields(), row()) -> Any), pgsql_connection(), iodata()) -> {ok, [Any]} | {error, any()}.
+-spec map(fun((fields(), row()) -> Any), pgsql_connection(), query()) -> {ok, [Any]} | {error, any()}.
 map(Function, Connection, Query) ->
     map(Function, Connection, Query, []).
 
--spec map(fun((fields(), row()) -> Any), pgsql_connection(), iodata(), [any()]) -> {ok, [Any]} | {error, any()}.
+-spec map(fun((fields(), row()) -> Any), pgsql_connection(), query(), query_params()) -> {ok, [Any]} | {error, any()}.
 map(Function, Connection, Query, Parameters) ->
     map(Function, Connection, Query, Parameters, []).
 
--spec map(fun((fields(), row()) -> Any), pgsql_connection(), iodata(), [any()], query_options()) -> {ok, [Any]} | {error, any()}.
+-spec map(fun((fields(), row()) -> Any), pgsql_connection(), query(), query_params(), query_options()) -> {ok, [Any]} | {error, any()}.
 map(Function, Connection, Query, Parameters, QueryOptions) ->
     map(Function, Connection, Query, Parameters, QueryOptions, ?REQUEST_TIMEOUT).
 
--spec map(fun((fields(), row()) -> Any), pgsql_connection(), iodata(), [any()], query_options(), timeout()) -> {ok, [Any]} | {error, any()}.
-map(Function, ConnectionPid, Query, Parameters, QueryOptions, Timeout) ->
+-spec map(fun((fields(), row()) -> Any), pgsql_connection(), query(), query_params(), query_options(), timeout()) -> {ok, [Any]} | {error, any()}.
+map(Function, ConnectionPid, Query, Parameters, QueryOptions, Timeout) when is_map(Parameters) ->
+    {Query1, Parameters1} = convert_named_params(Query, Parameters),
+    map(Function, ConnectionPid, Query1, Parameters1, QueryOptions, Timeout);
+map(Function, ConnectionPid, Query, Parameters, QueryOptions, Timeout) when is_list(Parameters) ->
     call_and_retry(ConnectionPid, {map, Query, Parameters, Function, QueryOptions, Timeout}, proplists:get_bool(retry, QueryOptions), adjust_timeout(Timeout)).
 
 %%--------------------------------------------------------------------
 %% @doc Iterate on results of a given query.
 %% The function is evaluated within the connection's process.
 %%
--spec foreach(fun((fields(), row()) -> any()), pgsql_connection(), iodata()) -> ok | {error, any()}.
+-spec foreach(fun((fields(), row()) -> any()), pgsql_connection(), query()) -> ok | {error, any()}.
 foreach(Function, Connection, Query) ->
     foreach(Function, Connection, Query, []).
 
--spec foreach(fun((fields(), row()) -> any()), pgsql_connection(), iodata(), [any()]) -> ok | {error, any()}.
+-spec foreach(fun((fields(), row()) -> any()), pgsql_connection(), query(), query_params()) -> ok | {error, any()}.
 foreach(Function, Connection, Query, Parameters) ->
     foreach(Function, Connection, Query, Parameters, []).
 
--spec foreach(fun((fields(), row()) -> any()), pgsql_connection(), iodata(), [any()], query_options()) -> ok | {error, any()}.
+-spec foreach(fun((fields(), row()) -> any()), pgsql_connection(), query(), query_params(), query_options()) -> ok | {error, any()}.
 foreach(Function, Connection, Query, Parameters, QueryOptions) ->
     foreach(Function, Connection, Query, Parameters, QueryOptions, ?REQUEST_TIMEOUT).
 
--spec foreach(fun((fields(), row()) -> any()), pgsql_connection(), iodata(), [any()], query_options(), timeout()) -> ok | {error, any()}.
-foreach(Function, ConnectionPid, Query, Parameters, QueryOptions, Timeout) ->
+-spec foreach(fun((fields(), row()) -> any()), pgsql_connection(), query(), query_params(), query_options(), timeout()) -> ok | {error, any()}.
+foreach(Function, ConnectionPid, Query, Parameters, QueryOptions, Timeout) when is_map(Parameters) ->
+    {Query1, Parameters1} = convert_named_params(Query, Parameters),
+    foreach(Function, ConnectionPid, Query1, Parameters1, QueryOptions, Timeout);
+foreach(Function, ConnectionPid, Query, Parameters, QueryOptions, Timeout) when is_list(Parameters) ->
     call_and_retry(ConnectionPid, {foreach, Query, Parameters, Function, QueryOptions, Timeout}, proplists:get_bool(retry, QueryOptions), adjust_timeout(Timeout)).
 
 %%--------------------------------------------------------------------
@@ -1143,19 +1161,63 @@ native_to_odbc({Other, [], []}) -> {error, {unknown_command, Other}}.
 %% @doc Convert a statement from the ? placeholder syntax to the $x placeholder
 %% syntax.
 %%
--spec convert_odbc_params(binary() | string()) -> string().
-convert_odbc_params(StatementStr) when is_list(StatementStr) ->
-    convert_odbc_params_0(StatementStr, false, 1, []);
-convert_odbc_params(StatementStr) when is_binary(StatementStr) ->
-    convert_odbc_params(binary_to_list(StatementStr)).
+-spec convert_odbc_params(iodata()) -> iodata().
+convert_odbc_params(Statement) ->
+    convert_odbc_params_0(unicode:characters_to_list(iolist_to_binary(Statement)), 1, []).
 
-convert_odbc_params_0([], _InString, _PlaceholderIndex, Acc) -> lists:reverse(Acc);
-convert_odbc_params_0([$? | Tail], false, PlaceholderIndex, Acc) ->
-    convert_odbc_params_0(Tail, false, PlaceholderIndex + 1, lists:reverse([$$ | integer_to_list(PlaceholderIndex)]) ++ Acc);
-convert_odbc_params_0([$' | Tail], InString, PlaceholderIndex, Acc) ->
-    convert_odbc_params_0(Tail, not InString, PlaceholderIndex, [$' | Acc]);
-convert_odbc_params_0([H | Tail], InString, PlaceholderIndex, Acc) ->
-    convert_odbc_params_0(Tail, InString, PlaceholderIndex, [H | Acc]).
+convert_odbc_params_0([], _PlaceholderIndex, Acc) ->
+    lists:reverse(Acc);
+convert_odbc_params_0([$? | Tail], PlaceholderIndex, Acc) ->
+    convert_odbc_params_0(Tail, PlaceholderIndex + 1, lists:reverse([$$ | integer_to_list(PlaceholderIndex)], Acc));
+convert_odbc_params_0([$' | _] = Statement, PlaceholderIndex, Acc) ->
+    {String, Tail} = parse_sql_string(Statement),
+    convert_odbc_params_0(Tail, PlaceholderIndex, lists:reverse(String, Acc));
+convert_odbc_params_0([H | Tail], PlaceholderIndex, Acc) ->
+    convert_odbc_params_0(Tail, PlaceholderIndex, [H | Acc]).
+
+%%--------------------------------------------------------------------
+%% @doc Convert a statement from the $name and ${name} placeholder syntax to
+%% the $x placeholder syntax.
+%%
+-spec convert_named_params(iodata(), map()) -> iodata().
+convert_named_params(Statement, Params) when is_map(Params) ->
+    convert_named_params_0(unicode:characters_to_list(iolist_to_binary(Statement)), Params, 1, [], []).
+
+convert_named_params_0([], _, _, StatementAcc, ParamsAcc) ->
+    {lists:reverse(StatementAcc), lists:reverse(ParamsAcc)};
+convert_named_params_0([$$, $$ | Tail], Params, PlaceholderIndex, StatementAcc, ParamsAcc) ->
+    convert_named_params_0(Tail, Params, PlaceholderIndex, [$$, $$ | StatementAcc], ParamsAcc);
+convert_named_params_0([$$ | _] = Statement, Params, PlaceholderIndex, StatementAcc, ParamsAcc) ->
+    {Name, Tail} = parse_sql_placeholder_name(Statement),
+    Placeholder = [$$ | integer_to_list(PlaceholderIndex)],
+    Value = maps:get(list_to_existing_atom(Name), Params),
+    convert_named_params_0(Tail, Params, PlaceholderIndex + 1, lists:reverse(Placeholder, StatementAcc), [Value | ParamsAcc]);
+convert_named_params_0([$' | _] = Statement, Params, PlaceholderIndex, StatementAcc, ParamsAcc) ->
+    {String, Tail} = parse_sql_string(Statement),
+    convert_named_params_0(Tail, Params, PlaceholderIndex, lists:reverse(String, StatementAcc), ParamsAcc);
+convert_named_params_0([H | Tail], Params, PlaceholderIndex, StatementAcc, ParamsAcc) ->
+    convert_named_params_0(Tail, Params, PlaceholderIndex, [H | StatementAcc], ParamsAcc).
+
+parse_sql_string([$' | Tail]) ->
+    {String, Tail1} = parse_sql_string_0(Tail, []),
+    {[$' | String], Tail1}.
+
+parse_sql_string_0([$', $' | Tail], Acc) ->
+    parse_sql_string_0(Tail, [$', $' | Acc]);
+parse_sql_string_0([$' | Tail], Acc) ->
+    {lists:reverse([$' | Acc]), Tail};
+parse_sql_string_0([H | Tail], Acc) ->
+    parse_sql_string_0(Tail, [H | Acc]).
+
+parse_sql_placeholder_name([$$, ${ | Tail]) ->
+    {Name, [$} | Tail1]} = lists:splitwith(fun (C) -> C =/= $} end, Tail),
+    {Name, Tail1};
+parse_sql_placeholder_name([$$ | Tail]) ->
+    lists:splitwith(fun
+        ($\s) -> false;
+        ($\t) -> false;
+        (_) -> true
+    end, Tail).
 
 adjust_timeout(infinity) -> infinity;
 adjust_timeout(Timeout) -> Timeout + ?TIMEOUT_GEN_SERVER_CALL_DELTA.
@@ -1372,3 +1434,23 @@ command_completed(Command, #state{current = Command, pending = []} = State) ->
 command_completed(Command, #state{current = Command, pending = [{PendingCommand, PendingFrom} | PendingT]} = State0) ->
     State1 = State0#state{current = undefined, pending = PendingT},
     do_query(PendingCommand, PendingFrom, State1).
+
+-ifdef(TEST).
+-include_lib("eunit/include/eunit.hrl").
+
+convert_odbc_params_test_() ->
+    Tests = [
+        {"a = ? AND b = 'h''$''lla?'", "a = $1 AND b = 'h''$''lla?'"},
+        {"a = ? AND b = ?", "a = $1 AND b = $2"}
+    ],
+    [?_assertEqual(R, convert_odbc_params(I)) || {I, R} <- Tests].
+
+convert_named_params_test_() ->
+    Tests = [
+        {{"a = $hello AND b = $world", #{hello => "hello", world => "world"}}, {"a = $1 AND b = $2", ["hello", "world"]}},
+        {{"a = ${hello} AND b = $world", #{hello => "hello", world => "world"}}, {"a = $1 AND b = $2", ["hello", "world"]}},
+        {{"a = ${with spaces} AND b = $world", #{'with spaces' => "hello", world => "world"}}, {"a = $1 AND b = $2", ["hello", "world"]}}
+    ],
+    [?_assertEqual(R, convert_named_params(I, P)) || {{I, P}, R} <- Tests].
+
+-endif.
