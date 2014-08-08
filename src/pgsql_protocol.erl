@@ -132,7 +132,7 @@ encode_parameter(Binary, _Type, _OIDMap, _IntegerDateTimes) when is_binary(Binar
     Size = byte_size(Binary),
     {binary, <<Size:32/integer, Binary/binary>>};
 encode_parameter(String, _Type, _OIDMap, _IntegerDateTimes) when is_list(String) ->
-    Binary = list_to_binary(String),
+    Binary = unicode:characters_to_binary(String),
     Size = byte_size(Binary),
     {text, <<Size:32/integer, Binary/binary>>};
 encode_parameter(Float, _Type, _OIDMap, _IntegerDateTimes) when is_float(Float) ->
