@@ -1179,7 +1179,7 @@ convert_odbc_params_0([H | Tail], PlaceholderIndex, Acc) ->
 %% @doc Convert a statement from the $name and ${name} placeholder syntax to
 %% the $x placeholder syntax.
 %%
--spec convert_named_params(iodata(), map()) -> iodata().
+-spec convert_named_params(iodata(), map()) -> {iodata(), [any()]}.
 convert_named_params(Statement, Params) when is_map(Params) ->
     convert_named_params_0(unicode:characters_to_list(iolist_to_binary(Statement)), Params, 1, [], []).
 
@@ -1190,13 +1190,23 @@ convert_named_params_0([$$, $$ | Tail], Params, PlaceholderIndex, StatementAcc, 
 convert_named_params_0([$$, ${ | _] = Statement, Params, PlaceholderIndex, StatementAcc, ParamsAcc) ->
     {Name, Tail} = parse_sql_placeholder_name(Statement),
     Placeholder = [$$ | integer_to_list(PlaceholderIndex)],
-    Value = maps:get(list_to_existing_atom(Name), Params),
+    Value = maps:get(Name, normalize_params_keys(Params)),
     convert_named_params_0(Tail, Params, PlaceholderIndex + 1, lists:reverse(Placeholder, StatementAcc), [Value | ParamsAcc]);
 convert_named_params_0([$' | _] = Statement, Params, PlaceholderIndex, StatementAcc, ParamsAcc) ->
     {String, Tail} = parse_sql_string(Statement),
     convert_named_params_0(Tail, Params, PlaceholderIndex, lists:reverse(String, StatementAcc), ParamsAcc);
 convert_named_params_0([H | Tail], Params, PlaceholderIndex, StatementAcc, ParamsAcc) ->
     convert_named_params_0(Tail, Params, PlaceholderIndex, [H | StatementAcc], ParamsAcc).
+
+normalize_params_keys(Params) ->
+    maps:fold(fun
+        (Key, Value, Acc) when is_atom(Key) ->
+            maps:put(atom_to_list(Key), Value, Acc);
+        (Key, Value, Acc) when is_binary(Key) ->
+            maps:put(unicode:characters_to_list(Key), Value, Acc);
+        (Key, Value, Acc) ->
+            maps:put(Key, Value, Acc)
+    end, #{}, Params).
 
 parse_sql_string([$' | Tail]) ->
     {String, Tail1} = parse_sql_string_0(Tail, []),
