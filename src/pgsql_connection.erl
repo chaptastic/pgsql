@@ -1187,7 +1187,7 @@ convert_named_params_0([], _, _, StatementAcc, ParamsAcc) ->
     {lists:reverse(StatementAcc), lists:reverse(ParamsAcc)};
 convert_named_params_0([$$, $$ | Tail], Params, PlaceholderIndex, StatementAcc, ParamsAcc) ->
     convert_named_params_0(Tail, Params, PlaceholderIndex, [$$, $$ | StatementAcc], ParamsAcc);
-convert_named_params_0([$$ | _] = Statement, Params, PlaceholderIndex, StatementAcc, ParamsAcc) ->
+convert_named_params_0([$$, ${ | _] = Statement, Params, PlaceholderIndex, StatementAcc, ParamsAcc) ->
     {Name, Tail} = parse_sql_placeholder_name(Statement),
     Placeholder = [$$ | integer_to_list(PlaceholderIndex)],
     Value = maps:get(list_to_existing_atom(Name), Params),
@@ -1211,13 +1211,7 @@ parse_sql_string_0([H | Tail], Acc) ->
 
 parse_sql_placeholder_name([$$, ${ | Tail]) ->
     {Name, [$} | Tail1]} = lists:splitwith(fun (C) -> C =/= $} end, Tail),
-    {Name, Tail1};
-parse_sql_placeholder_name([$$ | Tail]) ->
-    lists:splitwith(fun
-        ($\s) -> false;
-        ($\t) -> false;
-        (_) -> true
-    end, Tail).
+    {Name, Tail1}.
 
 adjust_timeout(infinity) -> infinity;
 adjust_timeout(Timeout) -> Timeout + ?TIMEOUT_GEN_SERVER_CALL_DELTA.
@@ -1447,9 +1441,8 @@ convert_odbc_params_test_() ->
 
 convert_named_params_test_() ->
     Tests = [
-        {{"a = $hello AND b = $world", #{hello => "hello", world => "world"}}, {"a = $1 AND b = $2", ["hello", "world"]}},
-        {{"a = ${hello} AND b = $world", #{hello => "hello", world => "world"}}, {"a = $1 AND b = $2", ["hello", "world"]}},
-        {{"a = ${with spaces} AND b = $world", #{'with spaces' => "hello", world => "world"}}, {"a = $1 AND b = $2", ["hello", "world"]}}
+        {{"a = ${hello} AND b = ${world}", #{hello => "hello", world => "world"}}, {"a = $1 AND b = $2", ["hello", "world"]}},
+        {{"a = ${with spaces} AND b = ${world}", #{'with spaces' => "hello", world => "world"}}, {"a = $1 AND b = $2", ["hello", "world"]}}
     ],
     [?_assertEqual(R, convert_named_params(I, P)) || {{I, P}, R} <- Tests].
 
