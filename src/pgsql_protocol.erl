@@ -128,6 +128,9 @@ encode_format(binary) -> <<1:16/integer>>.
 -spec encode_parameter(any(), pgsql_oid() | undefined, pgsql_oid_map(), boolean()) -> {text | binary, binary()}.
 encode_parameter({array, List}, Type, OIDMap, IntegerDateTimes) ->
     encode_array(List, Type, OIDMap, IntegerDateTimes);
+encode_parameter({uuid, Binary}, _Type, _OIDMap, _IntegerDateTimes) when byte_size(Binary) =:= 16 ->
+    Size = byte_size(Binary),
+    {binary, <<Size:32/integer, Binary/binary>>};
 encode_parameter(Binary, _Type, _OIDMap, _IntegerDateTimes) when is_binary(Binary) ->
     Size = byte_size(Binary),
     {binary, <<Size:32/integer, Binary/binary>>};
@@ -828,7 +831,7 @@ decode_value_text(?POLYGONOID, Value, _OIDMap) ->
 decode_value_text(?VOIDOID, _Value, _OIDMap) -> null;
 decode_value_text(?UUIDOID, <<A:8/binary, $-, B:4/binary, $-, C:4/binary, $-, D:4/binary, $-, E:12/binary>>, _OIDMap) ->
     Value = binary_to_integer(<<A:8/binary, B:4/binary, C:4/binary, D:4/binary, E:12/binary>>, 16),
-    <<Value:128/unsigned-integer>>;
+    {uuid, <<Value:128/unsigned-integer>>};
 decode_value_text(TypeOID, Value, _OIDMap) when TypeOID =:= ?TEXTOID
             orelse TypeOID =:= ?NAMEOID
             orelse TypeOID =:= ?BPCHAROID
@@ -922,7 +925,7 @@ decode_value_bin(?FLOAT8OID, <<Value:64/float>>, _OIDMap, _IntegerDateTimes) -> 
 decode_value_bin(?FLOAT8OID, <<127,248,0,0,0,0,0,0>>, _OIDMap, _IntegerDateTimes) -> 'NaN';
 decode_value_bin(?FLOAT8OID, <<127,240,0,0,0,0,0,0>>, _OIDMap, _IntegerDateTimes) -> 'Infinity';
 decode_value_bin(?FLOAT8OID, <<255,240,0,0,0,0,0,0>>, _OIDMap, _IntegerDateTimes) -> '-Infinity';
-decode_value_bin(?UUIDOID, Value, _OIDMap, _IntegerDateTimes) -> Value;
+decode_value_bin(?UUIDOID, Value, _OIDMap, _IntegerDateTimes) -> {uuid, Value};
 decode_value_bin(?DATEOID, <<Date:32/signed-integer>>, _OIDMap, true) -> calendar:gregorian_days_to_date(Date + ?POSTGRESQL_GD_EPOCH);
 decode_value_bin(?TIMEOID, <<Time:64/signed-integer>>, _OIDMap, true) -> decode_time_int(Time);
 decode_value_bin(?TIMETZOID, <<Time:64/signed-integer, _TZ:32/integer>>, _OIDMap, true) -> decode_time_int(Time);

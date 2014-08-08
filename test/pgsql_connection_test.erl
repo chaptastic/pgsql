@@ -273,7 +273,7 @@ types_test_() ->
         },
         {"Insert uuid (binary)",
             ?_assertEqual({updated, 1}, pgsql_connection:param_query(Conn, "insert into types (id, an_integer, a_bigint, a_text, a_uuid, a_bytea, a_real) values (?, ?, ?, ?, ?, ?, ?)",
-                [8, null, null, null, <<114,127,66,166,230,160,66,35,155,114,106,94,183,67,106,181>>, null, null]))
+                [8, null, null, null, {uuid, <<114,127,66,166,230,160,66,35,155,114,106,94,183,67,106,181>>}, null, null]))
         },
         {"Insert bytea",
             ?_assertEqual({updated, 1}, pgsql_connection:param_query(Conn, "insert into types (id, an_integer, a_bigint, a_text, a_uuid, a_bytea, a_real) values (?, ?, ?, ?, ?, ?, ?)",
@@ -298,7 +298,7 @@ types_test_() ->
                 {selected, [Row]} = R,
                 ?assertMatch({12, 42, 1099511627776, <<"And in the end, the love you take is equal to the love you make">>, _UUID, <<"deadbeef">>, _Float}, Row),
                 {12, 42, 1099511627776, <<"And in the end, the love you take is equal to the love you make">>, UUID, <<"deadbeef">>, Float} = Row,
-                ?assertEqual(<<114,127,66,166,230,160,66,35,155,114,106,94,183,67,106,181>>, UUID),
+                ?assertEqual({uuid, <<114,127,66,166,230,160,66,35,155,114,106,94,183,67,106,181>>}, UUID),
                 ?assert(Float > 3.1413),
                 ?assert(Float < 3.1416)
             end)
@@ -310,7 +310,7 @@ types_test_() ->
                 {selected, [Row]} = R,
                 ?assertMatch({12, 42, 1099511627776, <<"And in the end, the love you take is equal to the love you make">>, _UUID, <<"deadbeef">>, _Float}, Row),
                 {12, 42, 1099511627776, <<"And in the end, the love you take is equal to the love you make">>, UUID, <<"deadbeef">>, Float} = Row,
-                ?assertEqual(<<114,127,66,166,230,160,66,35,155,114,106,94,183,67,106,181>>, UUID),
+                ?assertEqual({uuid, <<114,127,66,166,230,160,66,35,155,114,106,94,183,67,106,181>>}, UUID),
                 ?assert(Float > 3.1413),
                 ?assert(Float < 3.1416)
             end)
