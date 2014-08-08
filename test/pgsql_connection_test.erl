@@ -1172,12 +1172,6 @@ invalid_query_test_() ->
         fun({_SupPid, Conn}) ->
                 [
                     ?_test(begin
-                                ?assertEqual({error, {badarg, toto}}, pgsql_connection:extended_query(Conn, "insert into tmp(id, other) values (1, $1)", [toto])),
-                                % connection still usable
-                                R = pgsql_connection:extended_query(Conn, "insert into tmp(id, other) values (1, $1)", ["toto"]),
-                                ?assertEqual({{insert, 0, 1}, [], []}, R)
-                        end),
-                    ?_test(begin
                                 ?assertMatch({error, _Error}, pgsql_connection:simple_query(Conn, "FOO")),
                                 ?assertMatch({error, _Error}, pgsql_connection:simple_query(Conn, "FOO", [])),
                                 ?assertMatch({error, _Error}, pgsql_connection:simple_query(Conn, "FOO", [], 5000)),
