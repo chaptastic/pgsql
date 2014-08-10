@@ -611,8 +611,8 @@ pgsql_setup_startup(#state{socket = {SockModule, Sock} = Socket, options = Optio
     case SockModule:send(Sock, StartupMessage) of
         ok ->
             case receive_message(Socket, sync, Subscribers) of
-                {ok, #error_response{fields = Fields}} ->
-                    {error, maps:from_list(Fields)};
+                {ok, #error_response{} = Error} ->
+                    {error, error_map(Error)};
                 {ok, #authentication_ok{}} ->
                     pgsql_setup_finish(Socket, State0);
                 {ok, #authentication_kerberos_v5{}} ->
@@ -656,8 +656,8 @@ pgsql_setup_authenticate_password({SockModule, Sock} = Socket, Password, #state{
     case SockModule:send(Sock, Message) of
         ok ->
             case receive_message(Socket, sync, Subscribers) of
-                {ok, #error_response{fields = Fields}} ->
-                    {error, maps:from_list(Fields)};
+                {ok, #error_response{} = Error} ->
+                    {error, error_map(Error)};
                 {ok, #authentication_ok{}} ->
                     pgsql_setup_finish(Socket, State0);
                 {ok, UnexpectedMessage} ->
@@ -676,8 +676,8 @@ pgsql_setup_finish(Socket, #state{subscribers = Subscribers} = State0) ->
             pgsql_setup_finish(Socket, State0#state{backend_procid = ProcID, backend_secret = Secret});
         {ok, #ready_for_query{}} ->
             {ok, State0};
-        {ok, #error_response{fields = Fields}} ->
-            {error, maps:from_list(Fields)};
+        {ok, #error_response{} = Error} ->
+            {error, error_map(Error)};
         {ok, Message} ->
             {error, {unexpected_message, Message}};
         {error, _} = ReceiveError -> ReceiveError
@@ -773,8 +773,8 @@ pgsql_simple_query_loop(Result0, Acc, AsyncT, #state{socket = Socket, subscriber
             pgsql_simple_query_loop([], Acc1, AsyncT, State0);
         {ok, #empty_query_response{}} ->
             pgsql_simple_query_loop(Result0, Acc, AsyncT, State0);
-        {ok, #error_response{fields = Fields}} ->
-            Error = {error, maps:from_list(Fields)},
+        {ok, #error_response{} = Response} ->
+            Error = {error, error_map(Response)},
             Acc1 = [Error | Acc],
             pgsql_simple_query_loop([], Acc1, AsyncT, State0);
         {ok, #ready_for_query{}} ->
@@ -975,11 +975,11 @@ pgsql_extended_query_receive_loop0(#portal_suspended{}, LoopState, Fun, Acc0, Fi
     end;
 pgsql_extended_query_receive_loop0(#ready_for_query{}, {result, Result}, _Fun, _Acc0, _FinalizeFun, _MaxRowsStep, AsyncT, State0) ->
     return_async(Result, AsyncT, State0);
-pgsql_extended_query_receive_loop0(#error_response{fields = Fields}, _LoopState, _Fun, _Acc0, _FinalizeFun, 0, AsyncT, State0) ->
-    Error = {error, maps:from_list(Fields)},
+pgsql_extended_query_receive_loop0(#error_response{} = Response, _LoopState, _Fun, _Acc0, _FinalizeFun, 0, AsyncT, State0) ->
+    Error = {error, error_map(Response)},
     flush_until_ready_for_query(Error, AsyncT, State0);
-pgsql_extended_query_receive_loop0(#error_response{fields = Fields}, _LoopState, _Fun, _Acc0, _FinalizeFun, _MaxRowsStep, AsyncT, #state{socket = {SockModule, Sock}} = State0) ->
-    Error = {error, maps:from_list(Fields)},
+pgsql_extended_query_receive_loop0(#error_response{} = Response, _LoopState, _Fun, _Acc0, _FinalizeFun, _MaxRowsStep, AsyncT, #state{socket = {SockModule, Sock}} = State0) ->
+    Error = {error, error_map(Response)},
     case SockModule:send(Sock, pgsql_protocol:encode_sync_message()) of
         ok -> flush_until_ready_for_query(Error, AsyncT, State0);
         {error, _} = SendSyncPacketError -> return_async(SendSyncPacketError, AsyncT, State0)
@@ -1128,7 +1128,21 @@ decode_object(Object) ->
     ObjectUStr = re:replace(Object, <<" ">>, <<"_">>, [global, {return, list}]),
     ObjectULC = string:to_lower(ObjectUStr),
     [list_to_atom(ObjectULC)].
-    
+
+%%--------------------------------------------------------------------
+%% @doc Convert the error_response record to an error map
+error_map(#error_response{fields = Fields}) ->
+    lists:foldl(fun
+        ({Key, Value}, Acc) when Key =:= message; Key =:= file; Key =:= routine ->
+            maps:put(Key, unicode:characters_to_list(Value), Acc);
+        ({line = Key, Value}, Acc) ->
+            maps:put(Key, binary_to_integer(Value), Acc);
+        ({severity = Key, Value}, Acc) ->
+            maps:put(Key, list_to_atom(string:to_lower(unicode:characters_to_list(Value))), Acc);
+        ({Key, Value}, Acc) ->
+            maps:put(Key, Value, Acc)
+    end, #{}, Fields).
+
 %%--------------------------------------------------------------------
 %% @doc Convert a native result to an odbc result.
 %%
