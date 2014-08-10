@@ -259,19 +259,11 @@ types_test_() ->
             ?_assertEqual({updated, 1}, pgsql_connection:param_query(Conn, "insert into types (id, an_integer, a_bigint, a_text, a_uuid, a_bytea, a_real) values (?, ?, ?, ?, ?, ?, ?)",
                 [4, null, 1099511627776, null, null, null, null]))
         },
-        {"Insert text (list)",
-            ?_assertEqual({updated, 1}, pgsql_connection:param_query(Conn, "insert into types (id, an_integer, a_bigint, a_text, a_uuid, a_bytea, a_real) values (?, ?, ?, ?, ?, ?, ?)",
-                [5, null, null, "And in the end, the love you take is equal to the love you make", null, null, null]))
-        },
         {"Insert text (binary)",
             ?_assertEqual({updated, 1}, pgsql_connection:param_query(Conn, "insert into types (id, an_integer, a_bigint, a_text, a_uuid, a_bytea, a_real) values (?, ?, ?, ?, ?, ?, ?)",
                 [6, null, null, <<"And in the end, the love you take is equal to the love you make">>, null, null, null]))
         },
-        {"Insert uuid (list)",
-            ?_assertEqual({updated, 1}, pgsql_connection:param_query(Conn, "insert into types (id, an_integer, a_bigint, a_text, a_uuid, a_bytea, a_real) values (?, ?, ?, ?, ?, ?, ?)",
-                [7, null, null, null, "727F42A6-E6A0-4223-9B72-6A5EB7436AB5", null, null]))
-        },
-        {"Insert uuid (binary)",
+        {"Insert uuid",
             ?_assertEqual({updated, 1}, pgsql_connection:param_query(Conn, "insert into types (id, an_integer, a_bigint, a_text, a_uuid, a_bytea, a_real) values (?, ?, ?, ?, ?, ?, ?)",
                 [8, null, null, null, {uuid, <<114,127,66,166,230,160,66,35,155,114,106,94,183,67,106,181>>}, null, null]))
         },
@@ -289,7 +281,7 @@ types_test_() ->
         },
         {"Insert all",
             ?_assertEqual({updated, 1}, pgsql_connection:param_query(Conn, "insert into types (id, an_integer, a_bigint, a_text, a_uuid, a_bytea, a_real) values (?, ?, ?, ?, ?, ?, ?)",
-                [12, 42, 1099511627776, "And in the end, the love you take is equal to the love you make", "727F42A6-E6A0-4223-9B72-6A5EB7436AB5", <<"deadbeef">>, 3.1415]))
+                [12, 42, 1099511627776, <<"And in the end, the love you take is equal to the love you make">>, {uuid, <<114,127,66,166,230,160,66,35,155,114,106,94,183,67,106,181>>}, <<"deadbeef">>, 3.1415]))
         },
         {"Select values (12)",
             ?_test(begin
@@ -331,17 +323,13 @@ types_test_() ->
                 ?assertEqual({13, null, null, null, null, <<"deadbeef">>, null}, Row)
             end)
         },
-        {"Insert uuid in lowercase",
-            ?_assertEqual({updated, 1}, pgsql_connection:param_query(Conn, "insert into types (id, an_integer, a_bigint, a_text, a_uuid, a_bytea, a_real) values (?, ?, ?, ?, ?, ?, ?)",
-                [15, null, null, null, "727f42a6-e6a0-4223-9b72-6a5eb7436ab5", null, null]))
-        },
         {"Insert uc uuid in text column",
             ?_assertEqual({updated, 1}, pgsql_connection:param_query(Conn, "insert into types (id, an_integer, a_bigint, a_text, a_uuid, a_bytea, a_real) values (?, ?, ?, ?, ?, ?, ?)",
-                [16, null, null, "727F42A6-E6A0-4223-9B72-6A5EB7436AB5", null, null, null]))
+                [16, null, null, <<"727F42A6-E6A0-4223-9B72-6A5EB7436AB5">>, null, null, null]))
         },
         {"Insert lc uuid in text column",
             ?_assertEqual({updated, 1}, pgsql_connection:param_query(Conn, "insert into types (id, an_integer, a_bigint, a_text, a_uuid, a_bytea, a_real) values (?, ?, ?, ?, ?, ?, ?)",
-                [17, null, null, "727f42a6-e6a0-4223-9b72-6a5eb7436ab5", null, null, null]))
+                [17, null, null, <<"727f42a6-e6a0-4223-9b72-6a5eb7436ab5">>, null, null, null]))
         },
         {"Select text uuid (16 \& 17)",
             ?_test(begin
@@ -394,49 +382,49 @@ array_types_test_() ->
         end,
         fun({_SupPid, Conn}) ->
                 [
-                    ?_assertMatch({{select,1},[_],[{{array,[<<"2">>,<<"3">>]}}]}, pgsql_connection:simple_query(Conn, "select '{2,3}'::text[]")),
-                    ?_assertMatch({{select,1},[_],[{{array,[2,3]}}]}, pgsql_connection:simple_query(Conn, "select '{2,3}'::int[]")),
-                    ?_assertMatch({{select,1},[_],[{{array,[]}}]}, pgsql_connection:simple_query(Conn, "select '{}'::text[]")),
-                    ?_assertMatch({{select,1},[_],[{{array,[]}}]}, pgsql_connection:simple_query(Conn, "select '{}'::int[]")),
-                    ?_assertMatch({{select,1},[_],[{{array,[]}}]}, pgsql_connection:simple_query(Conn, "select ARRAY[]::text[]")),
-                    ?_assertMatch({{select,1},[_],[{{array,[<<"2">>,<<"3">>]}}]}, pgsql_connection:extended_query(Conn, "select $1::text[]", ["{\"2\", \"3\"}"])),
-                    ?_assertMatch({{select,1},[_],[{{array,[<<"2">>,<<"3">>]}}]}, pgsql_connection:extended_query(Conn, "select $1::text[]", [{array, ["2", "3"]}])),
-                    ?_assertMatch({{select,1},[_],[{{array,[<<"2">>,<<"3">>]}}]}, pgsql_connection:extended_query(Conn, "select $1::text[]", [{array, [<<"2">>, <<"3">>]}])),
-                    ?_assertMatch({{select,1},[_],[{{array,[<<"2,3">>,<<"4">>]}}]}, pgsql_connection:extended_query(Conn, "select $1::text[]", [{array, [<<"2,3">>, <<"4">>]}])),
-                    ?_assertMatch({{select,1},[_],[{{array,[<<"2,,3">>,<<"4">>]}}]}, pgsql_connection:extended_query(Conn, "select $1::text[]", [{array, [<<"2,,3">>, <<"4">>]}])),
-                    ?_assertMatch({{select,1},[_],[{{array,[<<"2\"3">>,<<"4">>]}}]}, pgsql_connection:extended_query(Conn, "select $1::text[]", [{array, [<<"2\"3">>, <<"4">>]}])),
-                    ?_assertMatch({{select,1},[_],[{{array,[<<"2\",,\"3">>,<<"4">>]}}]}, pgsql_connection:extended_query(Conn, "select $1::text[]", [{array, [<<"2\",,\"3">>, <<"4">>]}])),
-                    ?_assertMatch({{select,1},[_],[{{array,[<<"2'3">>,<<"4">>]}}]}, pgsql_connection:extended_query(Conn, "select $1::text[]", [{array, [<<"2'3">>, <<"4">>]}])),
-                    ?_assertMatch({{select,1},[_],[{{array,[<<"2\\3">>,<<"4">>]}}]}, pgsql_connection:extended_query(Conn, "select $1::text[]", [{array, [<<"2\\3">>, <<"4">>]}])),
-                    ?_assertMatch({{select,1},[_],[{{array,[<<"2">>,<<"3">>]}}]}, pgsql_connection:extended_query(Conn, "select $1::bytea[]", [{array, [<<"2">>, <<"3">>]}])),
-                    ?_assertMatch({{select,1},[_],[{{array,[<<"2  ">>,<<"3  ">>]}}]}, pgsql_connection:extended_query(Conn, "select $1::char(3)[]", [{array, [<<"2">>, <<"3">>]}])),
-                    ?_assertMatch({{select,1},[_],[{{array,[<<"2">>,<<"3">>]}}]}, pgsql_connection:extended_query(Conn, "select $1::varchar(3)[]", [{array, [<<"2">>, <<"3">>]}])),
-                    ?_assertMatch({{select,1},[_],[{{array,[{array,[<<"2">>]},{array, [<<"3">>]}]}}]}, pgsql_connection:extended_query(Conn, "select $1::text[]", [{array, [{array, [<<"2">>]}, {array, [<<"3">>]}]}])),
-                    ?_assertMatch({{select,1},[_],[{{array,[]}}]}, pgsql_connection:extended_query(Conn, "select '{}'::text[]", [])),
-                    ?_assertMatch({{select,1},[_],[{{array,[]}}]}, pgsql_connection:extended_query(Conn, "select '{}'::int[]", [])),
-                    ?_assertMatch({{select,1},[_],[{{array,[]}}]}, pgsql_connection:extended_query(Conn, "select ARRAY[]::text[]", [])),
+                    ?_assertMatch({{select,1},[_],[{[<<"2">>,<<"3">>]}]}, pgsql_connection:simple_query(Conn, "select '{2,3}'::text[]")),
+                    ?_assertMatch({{select,1},[_],[{[2,3]}]}, pgsql_connection:simple_query(Conn, "select '{2,3}'::int[]")),
+                    ?_assertMatch({{select,1},[_],[{[]}]}, pgsql_connection:simple_query(Conn, "select '{}'::text[]")),
+                    ?_assertMatch({{select,1},[_],[{[]}]}, pgsql_connection:simple_query(Conn, "select '{}'::int[]")),
+                    ?_assertMatch({{select,1},[_],[{[]}]}, pgsql_connection:simple_query(Conn, "select ARRAY[]::text[]")),
+                    ?_assertMatch({{select,1},[_],[{[<<"2">>,<<"3">>]}]}, pgsql_connection:extended_query(Conn, "select $1::text[]", [{text, "{\"2\", \"3\"}"}])),
+                    ?_assertMatch({{select,1},[_],[{[<<"2">>,<<"3">>]}]}, pgsql_connection:extended_query(Conn, "select $1::text[]", [[<<"2">>, <<"3">>]])),
+                    ?_assertMatch({{select,1},[_],[{[<<"2">>,<<"3">>]}]}, pgsql_connection:extended_query(Conn, "select $1::text[]", [ [<<"2">>, <<"3">>]])),
+                    ?_assertMatch({{select,1},[_],[{[<<"2,3">>,<<"4">>]}]}, pgsql_connection:extended_query(Conn, "select $1::text[]", [[<<"2,3">>, <<"4">>]])),
+                    ?_assertMatch({{select,1},[_],[{[<<"2,,3">>,<<"4">>]}]}, pgsql_connection:extended_query(Conn, "select $1::text[]", [[<<"2,,3">>, <<"4">>]])),
+                    ?_assertMatch({{select,1},[_],[{[<<"2\"3">>,<<"4">>]}]}, pgsql_connection:extended_query(Conn, "select $1::text[]", [[<<"2\"3">>, <<"4">>]])),
+                    ?_assertMatch({{select,1},[_],[{[<<"2\",,\"3">>,<<"4">>]}]}, pgsql_connection:extended_query(Conn, "select $1::text[]", [[<<"2\",,\"3">>, <<"4">>]])),
+                    ?_assertMatch({{select,1},[_],[{[<<"2'3">>,<<"4">>]}]}, pgsql_connection:extended_query(Conn, "select $1::text[]", [[<<"2'3">>, <<"4">>]])),
+                    ?_assertMatch({{select,1},[_],[{[<<"2\\3">>,<<"4">>]}]}, pgsql_connection:extended_query(Conn, "select $1::text[]", [[<<"2\\3">>, <<"4">>]])),
+                    ?_assertMatch({{select,1},[_],[{[<<"2">>,<<"3">>]}]}, pgsql_connection:extended_query(Conn, "select $1::bytea[]", [[<<"2">>, <<"3">>]])),
+                    ?_assertMatch({{select,1},[_],[{[<<"2  ">>,<<"3  ">>]}]}, pgsql_connection:extended_query(Conn, "select $1::char(3)[]", [[<<"2">>, <<"3">>]])),
+                    ?_assertMatch({{select,1},[_],[{[<<"2">>,<<"3">>]}]}, pgsql_connection:extended_query(Conn, "select $1::varchar(3)[]", [[<<"2">>, <<"3">>]])),
+                    ?_assertMatch({{select,1},[_],[{[[<<"2">>], [<<"3">>]]}]}, pgsql_connection:extended_query(Conn, "select $1::text[]", [[[<<"2">>], [<<"3">>]]])),
+                    ?_assertMatch({{select,1},[_],[{[]}]}, pgsql_connection:extended_query(Conn, "select '{}'::text[]", [])),
+                    ?_assertMatch({{select,1},[_],[{[]}]}, pgsql_connection:extended_query(Conn, "select '{}'::int[]", [])),
+                    ?_assertMatch({{select,1},[_],[{[]}]}, pgsql_connection:extended_query(Conn, "select ARRAY[]::text[]", [])),
                     
-                    ?_assertMatch({{select,1},[_],[{{array,[{array,[<<"2">>]},{array, [<<"3">>]}]}}]}, pgsql_connection:simple_query(Conn, "select '{{\"2\"}, {\"3\"}}'::text[][]")),
-                    ?_assertMatch({{select,1},[_],[{{array,[{array,[1,2]}, {array, [3,4]}]}}]}, pgsql_connection:simple_query(Conn, "select ARRAY[ARRAY[1,2], ARRAY[3,4]]")),
-                    ?_assertMatch({{select,1},[_],[{{array,[]}}]}, pgsql_connection:extended_query(Conn, "select $1::bytea[]", [{array, []}])),
-                    ?_assertMatch({{select,1},[_, _],[{{array,[]},{array,[<<"foo">>]}}]}, pgsql_connection:extended_query(Conn, "select $1::bytea[], $2::bytea[]", [{array, []}, {array, [<<"foo">>]}])),
+                    ?_assertMatch({{select,1},[_],[{[[<<"2">>], [<<"3">>]]}]}, pgsql_connection:simple_query(Conn, "select '{{\"2\"}, {\"3\"}}'::text[][]")),
+                    ?_assertMatch({{select,1},[_],[{[[1,2], [3,4]]}]}, pgsql_connection:simple_query(Conn, "select ARRAY[ARRAY[1,2], ARRAY[3,4]]")),
+                    ?_assertMatch({{select,1},[_],[{[]}]}, pgsql_connection:extended_query(Conn, "select $1::bytea[]", [[]])),
+                    ?_assertMatch({{select,1},[_, _],[{[],[<<"foo">>]}]}, pgsql_connection:extended_query(Conn, "select $1::bytea[], $2::bytea[]", [[], [<<"foo">>]])),
 
-                    ?_assertMatch({{select,1},[_],[{{array,[1,2]}}]}, pgsql_connection:simple_query(Conn, "select ARRAY[1,2]::int[]")),
+                    ?_assertMatch({{select,1},[_],[{[1,2]}]}, pgsql_connection:simple_query(Conn, "select ARRAY[1,2]::int[]")),
                     {timeout, 20, ?_test(
                         begin
                                 {{create, table},[],[]} = pgsql_connection:simple_query(Conn, "create temporary table tmp (id integer primary key, ints integer[])"),
                                 Array = lists:seq(1,1000000),
-                                R = pgsql_connection:extended_query(Conn, "insert into tmp(id, ints) values($1, $2)", [1, {array, Array}]),
+                                R = pgsql_connection:extended_query(Conn, "insert into tmp(id, ints) values($1, $2)", [1,  Array]),
                                 ?assertMatch({{insert, 0, 1}, [], []}, R)
                         end)},
                     ?_test(
                         begin
                                 {{create, table}, [], []} = pgsql_connection:simple_query(Conn, "create temporary table tmp2 (id integer primary key, bins bytea[])"),
-                                R = pgsql_connection:extended_query(Conn, "insert into tmp2(id, bins) values($1, $2)", [1, {array, [<<2>>, <<3>>]}]),
+                                R = pgsql_connection:extended_query(Conn, "insert into tmp2(id, bins) values($1, $2)", [1, [<<2>>, <<3>>]]),
                                 ?assertMatch({{insert, 0, 1}, [], []}, R),
-                                R2 = pgsql_connection:extended_query(Conn, "insert into tmp2(id, bins) values($1, $2)", [2, {array, [<<16#C2,1>>]}]),
+                                R2 = pgsql_connection:extended_query(Conn, "insert into tmp2(id, bins) values($1, $2)", [2, [<<16#C2,1>>]]),
                                 ?assertMatch({{insert, 0, 1}, [], []}, R2),
-                                R3 = pgsql_connection:extended_query(Conn, "insert into tmp2(id, bins) values($1, $2)", [3, {array, [<<2,0,3>>, <<4>>]}]),
+                                R3 = pgsql_connection:extended_query(Conn, "insert into tmp2(id, bins) values($1, $2)", [3, [<<2,0,3>>, <<4>>]]),
                                 ?assertMatch({{insert, 0, 1}, [], []}, R3)
                         end)
                 ]
@@ -864,7 +852,7 @@ fold_test_() ->
             {updated, 0} = pgsql_connection:sql_query(Conn, "BEGIN"),
             Val = lists:foldl(fun(I, Acc) ->
                 Str = "foobar " ++ integer_to_list(I * 42),
-                {updated, 1} = pgsql_connection:param_query(Conn, "insert into tmp (id, a_text) values (?, ?)", [I, Str]),
+                {updated, 1} = pgsql_connection:param_query(Conn, "insert into tmp (id, a_text) values (?, ?)", [I, {text, Str}]),
                 Acc + length(Str)
             end, 0, lists:seq(1, 3742)),
             {updated, 0} = pgsql_connection:sql_query(Conn, "COMMIT"),
@@ -896,7 +884,7 @@ map_test_() ->
             {updated, 0} = pgsql_connection:sql_query(Conn, "BEGIN"),
             ValR = lists:foldl(fun(I, Acc) ->
                 Str = "foobar " ++ integer_to_list(I * 42),
-                {updated, 1} = pgsql_connection:param_query(Conn, "insert into tmp (id, a_text) values (?, ?)", [I, Str]),
+                {updated, 1} = pgsql_connection:param_query(Conn, "insert into tmp (id, a_text) values (?, ?)", [I, {text, Str}]),
                 [length(Str) | Acc]
             end, [], lists:seq(1, 3742)),
             Val = lists:reverse(ValR),
@@ -961,7 +949,7 @@ foreach_test_() ->
             {updated, 0} = pgsql_connection:sql_query(Conn, "BEGIN"),
             ValR = lists:foldl(fun(I, Acc) ->
                 Str = "foobar " ++ integer_to_list(I * 42),
-                {updated, 1} = pgsql_connection:param_query(Conn, "insert into tmp (id, a_text) values (?, ?)", [I, Str]),
+                {updated, 1} = pgsql_connection:param_query(Conn, "insert into tmp (id, a_text) values (?, ?)", [I, {text, Str}]),
                 [length(Str) | Acc]
             end, [], lists:seq(1, 3742)),
             Val = lists:reverse(ValR),
@@ -1121,8 +1109,8 @@ custom_enum_test_() ->
             ?assertMatch({selected, [{{mood, <<"sad">>}}]}, pgsql_connection:sql_query(Conn, "select 'sad'::mood;")),
             ?assertMatch({selected, [{{mood, <<"sad">>}}]}, pgsql_connection:param_query(Conn, "select 'sad'::mood;", [])),
             ?assertMatch({selected, [{{mood, <<"sad">>}}]}, pgsql_connection:param_query(Conn, "select ?::mood;", [<<"sad">>])),
-            ?assertMatch({selected, [{{array, [{mood, <<"sad">>}]}}]}, pgsql_connection:sql_query(Conn, "select '{sad}'::mood[];")),
-            ?assertMatch({selected, [{{array, [{mood, <<"sad">>}]}}]}, pgsql_connection:param_query(Conn, "select ?::mood[];", [{array, [<<"sad">>]}]))
+            ?assertMatch({selected, [{[{mood, <<"sad">>}]}]}, pgsql_connection:sql_query(Conn, "select '{sad}'::mood[];")),
+            ?assertMatch({selected, [{[{mood, <<"sad">>}]}]}, pgsql_connection:param_query(Conn, "select ?::mood[];", [[<<"sad">>]]))
         end)
     ]
     end}.
@@ -1151,8 +1139,8 @@ custom_enum_native_test_() ->
             ?assertMatch({{select, 1}, [_], [{{mood, <<"sad">>}}]}, pgsql_connection:simple_query(Conn, "select 'sad'::mood;")),
             ?assertMatch({{select, 1}, [_], [{{mood, <<"sad">>}}]}, pgsql_connection:extended_query(Conn, "select 'sad'::mood;", [])),
             ?assertMatch({{select, 1}, [_], [{{mood, <<"sad">>}}]}, pgsql_connection:extended_query(Conn, "select $1::mood;", [<<"sad">>])),
-            ?assertMatch({{select, 1}, [_], [{{array, [{mood, <<"sad">>}]}}]}, pgsql_connection:simple_query(Conn, "select '{sad}'::mood[];")),
-            ?assertMatch({{select, 1}, [_], [{{array, [{mood, <<"sad">>}]}}]}, pgsql_connection:extended_query(Conn, "select $1::mood[];", [{array, [<<"sad">>]}]))
+            ?assertMatch({{select, 1}, [_], [{[{mood, <<"sad">>}]}]}, pgsql_connection:simple_query(Conn, "select '{sad}'::mood[];")),
+            ?assertMatch({{select, 1}, [_], [{[{mood, <<"sad">>}]}]}, pgsql_connection:extended_query(Conn, "select $1::mood[];", [[<<"sad">>]]))
         end)
     ]
     end}.
